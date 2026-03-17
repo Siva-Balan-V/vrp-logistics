@@ -1,0 +1,105 @@
+/* ============================================================
+   RouteForge — Global Styles
+   Aesthetic: Industrial Precision — monochrome base with 
+   electric amber accent, monospaced data, clean geometry
+   ============================================================ */
+
+:root {
+  --bg: #0a0b0e;
+  --bg-1: #111318;
+  --bg-2: #181b22;
+  --bg-3: #1f232d;
+  --border: #2a2f3d;
+  --border-hover: #3d4559;
+  --text: #e8eaf0;
+  --text-2: #8b92a8;
+  --text-3: #5a6070;
+  --accent: #f5a623;
+  --accent-dim: rgba(245,166,35,0.12);
+  --accent-hover: #ffc154;
+  --green: #3ecf8e;
+  --green-dim: rgba(62,207,142,0.12);
+  --red: #f2614a;
+  --red-dim: rgba(242,97,74,0.12);
+  --blue: #4b9eff;
+  --blue-dim: rgba(75,158,255,0.12);
+  --radius: 6px;
+  --radius-lg: 12px;
+  --mono: 'DM Mono', 'Fira Code', monospace;
+  --display: 'Syne', sans-serif;
+  --body: 'Inter', sans-serif;
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  --shadow-accent: 0 0 24px rgba(245,166,35,0.15);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--body);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-1); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
+
+/* Typography */
+h1, h2, h3, h4 { font-family: var(--display); font-weight: 700; letter-spacing: -0.02em; }
+.mono { font-family: var(--mono); }
+
+/* Utility */
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+
+/* Animations */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse-accent {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245,166,35,0.3); }
+  50%       { box-shadow: 0 0 0 8px rgba(245,166,35,0); }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes dash {
+  0%   { stroke-dashoffset: 500; }
+  100% { stroke-dashoffset: 0; }
+}
+
+.animate-fade-up { animation: fadeUp 0.4s ease both; }
+.animate-spin { animation: spin 1s linear infinite; }
+
+/* Button base */
+button {
+  cursor: pointer;
+  font-family: var(--body);
+  border: none;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+/* Input base */
+input, select, textarea {
+  font-family: var(--body);
+  background: var(--bg-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+
+/* Leaflet overrides */
+.leaflet-container { background: var(--bg-1) !important; }
+.leaflet-tile-pane { filter: brightness(0.85) saturate(0.7); }

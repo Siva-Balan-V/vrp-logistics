@@ -1,0 +1,55 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vrp-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - ROUTING_BACKEND=${ROUTING_BACKEND:-haversine}
+      - ORS_API_KEY=${ORS_API_KEY:-}
+      - OSRM_BASE_URL=${OSRM_BASE_URL:-http://router.project-osrm.org}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - SOLVER_TIME_LIMIT_SECONDS=${SOLVER_TIME_LIMIT_SECONDS:-60}
+      - DEBUG=false
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: vrp-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: vrp-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
+volumes:
+  redis_data:
