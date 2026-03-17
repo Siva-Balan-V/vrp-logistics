@@ -71,8 +71,10 @@ function RouteList({ vehicles, selectedVehicle, onSelect }) {
             onClick={() => onSelect(isSelected ? null : v.vehicle_id)}
             style={{
               background: isSelected ? 'var(--bg-3)' : 'var(--bg-2)',
-              border: `1px solid ${isSelected ? color : 'var(--border)'}`,
-              borderLeft: `3px solid ${color}`,
+              borderStyle: 'solid',
+              borderColor: isSelected ? color : 'var(--border)',
+              borderWidth: 1,
+              borderLeftWidth: 3,
               borderRadius: 'var(--radius)', padding: '10px 12px',
               cursor: 'pointer', transition: 'all 0.15s',
             }}

@@ -1,17 +1,6 @@
 import { useEffect, useRef, useMemo } from 'react'
+import L from 'leaflet'
 import { vehicleColor } from '../api.js'
-
-// Lazy-load Leaflet (CDN via index.html)
-let L = null
-
-function getLeaflet() {
-  if (L) return L
-  if (typeof window !== 'undefined' && window.L) {
-    L = window.L
-    return L
-  }
-  return null
-}
 
 export default function MapView({ result, depot, selectedVehicle, onSelectVehicle }) {
   const mapRef = useRef(null)
@@ -30,19 +19,22 @@ export default function MapView({ result, depot, selectedVehicle, onSelectVehicl
 
   // Initialize map
   useEffect(() => {
-    const leaf = getLeaflet()
-    if (!leaf || !mapRef.current || mapInstanceRef.current) return
+    if (!mapRef.current || mapInstanceRef.current) return
 
-    mapInstanceRef.current = leaf.map(mapRef.current, {
+    mapInstanceRef.current = L.map(mapRef.current, {
       center: centre,
       zoom: 12,
       zoomControl: true,
     })
 
-    leaf.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors',
       maxZoom: 19,
     }).addTo(mapInstanceRef.current)
+
+    requestAnimationFrame(() => {
+      mapInstanceRef.current?.invalidateSize()
+    })
 
     return () => {
       if (mapInstanceRef.current) {
@@ -54,9 +46,8 @@ export default function MapView({ result, depot, selectedVehicle, onSelectVehicl
 
   // Re-render layers when result or selection changes
   useEffect(() => {
-    const leaf = getLeaflet()
     const map = mapInstanceRef.current
-    if (!leaf || !map) return
+    if (!map) return
 
     // Clear existing layers
     layersRef.current.forEach(l => map.removeLayer(l))
@@ -75,7 +66,7 @@ export default function MapView({ result, depot, selectedVehicle, onSelectVehicl
       if (points.length < 2) return
 
       // Route polyline
-      const line = leaf.polyline(points, {
+      const line = L.polyline(points, {
         color,
         weight: isSelected ? 4 : 2,
         opacity,
@@ -90,7 +81,7 @@ export default function MapView({ result, depot, selectedVehicle, onSelectVehicl
         if (wi === 0 || wi === vehicle.waypoints.length - 1) return // skip depot copies
         const isDelivery = true
 
-        const circle = leaf.circleMarker([wp.lat, wp.lon], {
+        const circle = L.circleMarker([wp.lat, wp.lon], {
           radius: isSelected ? 5 : 3,
           color,
           fillColor: color,
@@ -113,8 +104,8 @@ export default function MapView({ result, depot, selectedVehicle, onSelectVehicl
     })
 
     // Depot marker
-    if (depot && leaf) {
-      const depotIcon = leaf.divIcon({
+    if (depot) {
+      const depotIcon = L.divIcon({
         html: `<div style="
           width:24px;height:24px;
           background:var(--accent,#f5a623);
@@ -126,7 +117,7 @@ export default function MapView({ result, depot, selectedVehicle, onSelectVehicl
         iconSize: [24, 24],
         iconAnchor: [12, 24],
       })
-      const dm = leaf.marker([depot.lat, depot.lon], { icon: depotIcon })
+      const dm = L.marker([depot.lat, depot.lon], { icon: depotIcon })
         .addTo(map)
         .bindTooltip(`<strong>Depot</strong><br/>${depot.label || 'Depot'}`, { sticky: true })
       layersRef.current.push(dm)
