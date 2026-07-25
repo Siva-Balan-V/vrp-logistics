@@ -39,6 +39,17 @@ def init_cache(redis_url: Optional[str] = None) -> None:
         _init_redis(redis_url)
 
 
+def is_redis_connected() -> bool:
+    """Check if Redis client is available and connected."""
+    if _redis_client is None:
+        return False
+    try:
+        _redis_client.ping()
+        return True
+    except Exception:
+        return False
+
+
 def _matrix_key(coords: list[tuple[float, float]], backend: str) -> str:
     raw = json.dumps({"coords": coords, "backend": backend}, sort_keys=True)
     return "matrix:" + hashlib.sha256(raw.encode()).hexdigest()

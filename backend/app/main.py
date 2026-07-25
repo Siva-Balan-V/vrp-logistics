@@ -15,6 +15,7 @@ from app.config import get_settings
 from app.models.schemas import HealthResponse
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.routes.optimization import router as opt_router
+from app.services import cache
 from app.services.cache import init_cache
 
 # ─────────────────────────────────────────────
@@ -109,6 +110,7 @@ def create_app() -> FastAPI:
             status="ok",
             version=settings.APP_VERSION,
             routing_backend=settings.ROUTING_BACKEND,
+            redis_connected=cache.is_redis_connected(),
         )
 
     @app.get("/", tags=["meta"])

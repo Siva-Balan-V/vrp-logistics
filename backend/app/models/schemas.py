@@ -108,3 +108,4 @@ class HealthResponse(BaseModel):
     status: str = "ok"
     version: str
     routing_backend: str
+    redis_connected: bool = False
