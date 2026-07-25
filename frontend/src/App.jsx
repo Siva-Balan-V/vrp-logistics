@@ -1,14 +1,36 @@
 import { useState, useCallback } from 'react'
+import { Routes, Route } from 'react-router-dom'
 import Header from './components/Header.jsx'
 import UploadPanel from './components/UploadPanel.jsx'
 import MapView from './components/MapView.jsx'
 import ResultsPanel from './components/ResultsPanel.jsx'
 import MetricsBar from './components/MetricsBar.jsx'
+import ProtectedRoute from './components/ProtectedRoute.jsx'
 import ErrorBoundary from './ErrorBoundary.jsx'
+import LoginPage from './pages/LoginPage.jsx'
+import RegisterPage from './pages/RegisterPage.jsx'
 import { optimizeRoutes } from './api.js'
+import { useAuth } from './context/AuthContext.jsx'
 
 export default function App() {
-  const [phase, setPhase] = useState('idle') // idle | solving | results | error
+  return (
+    <ErrorBoundary>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="*" element={
+          <ProtectedRoute>
+            <AppContent />
+          </ProtectedRoute>
+        } />
+      </Routes>
+    </ErrorBoundary>
+  )
+}
+
+function AppContent() {
+  const { token } = useAuth()
+  const [phase, setPhase] = useState('idle')
   const [jobData, setJobData] = useState(null)
   const [result, setResult]   = useState(null)
   const [error, setError]     = useState(null)
@@ -20,7 +42,7 @@ export default function App() {
     setResult(null)
     setSelectedVehicle(null)
     try {
-      const data = await optimizeRoutes(payload)
+      const data = await optimizeRoutes(payload, token)
       setJobData(payload)
       setResult(data)
       setPhase('results')
@@ -28,7 +50,7 @@ export default function App() {
       setError(err.message || 'Optimization failed')
       setPhase('error')
     }
-  }, [])
+  }, [token])
 
   const handleReset = useCallback(() => {
     setPhase('idle')
@@ -39,51 +61,49 @@ export default function App() {
   }, [])
 
   return (
-    <ErrorBoundary onReset={handleReset}>
-      <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-        <Header onReset={handleReset} phase={phase} />
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <Header onReset={handleReset} phase={phase} />
 
-        {phase === 'results' && result && (
-          <MetricsBar result={result} />
+      {phase === 'results' && result && (
+        <MetricsBar result={result} />
+      )}
+
+      <main style={{
+        flex: 1,
+        display: 'grid',
+        gridTemplateColumns: phase === 'results' ? '380px 1fr' : '1fr',
+        gap: 0,
+        overflow: 'hidden',
+        height: phase === 'results' ? 'calc(100vh - 120px)' : 'calc(100vh - 64px)',
+      }}>
+        {(phase === 'idle' || phase === 'error') && (
+          <UploadPanel
+            phase={phase}
+            error={error}
+            onSubmit={handleSubmit}
+            onReset={handleReset}
+          />
         )}
 
-        <main style={{
-          flex: 1,
-          display: 'grid',
-          gridTemplateColumns: phase === 'results' ? '380px 1fr' : '1fr',
-          gap: 0,
-          overflow: 'hidden',
-          height: phase === 'results' ? 'calc(100vh - 120px)' : 'calc(100vh - 64px)',
-        }}>
-          {(phase === 'idle' || phase === 'error') && (
-            <UploadPanel
-              phase={phase}
-              error={error}
-              onSubmit={handleSubmit}
-              onReset={handleReset}
+        {phase === 'results' && result && (
+          <>
+            <ResultsPanel
+              result={result}
+              selectedVehicle={selectedVehicle}
+              onSelectVehicle={setSelectedVehicle}
             />
-          )}
+            <MapView
+              result={result}
+              depot={jobData?.depot}
+              selectedVehicle={selectedVehicle}
+              onSelectVehicle={setSelectedVehicle}
+            />
+          </>
+        )}
 
-          {phase === 'results' && result && (
-            <>
-              <ResultsPanel
-                result={result}
-                selectedVehicle={selectedVehicle}
-                onSelectVehicle={setSelectedVehicle}
-              />
-              <MapView
-                result={result}
-                depot={jobData?.depot}
-                selectedVehicle={selectedVehicle}
-                onSelectVehicle={setSelectedVehicle}
-              />
-            </>
-          )}
-
-          {phase === 'solving' && <SolvingScreen />}
-        </main>
-      </div>
-    </ErrorBoundary>
+        {phase === 'solving' && <SolvingScreen />}
+      </main>
+    </div>
   )
 }
 

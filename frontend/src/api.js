@@ -1,16 +1,22 @@
 const BASE = import.meta.env.VITE_API_URL || ''
 
-export async function optimizeRoutes(payload) {
-  const res = await fetch(`${BASE}/api/v1/optimize-routes`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  })
+export async function apiFetch(path, { token, ...options } = {}) {
+  const headers = { 'Content-Type': 'application/json', ...options.headers }
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  const res = await fetch(`${BASE}${path}`, { ...options, headers })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
     throw new Error(err.detail || `HTTP ${res.status}`)
   }
   return res.json()
+}
+
+export async function optimizeRoutes(payload, token) {
+  return apiFetch('/api/v1/optimize-routes', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    token,
+  })
 }
 
 export const VEHICLE_COLORS = [
