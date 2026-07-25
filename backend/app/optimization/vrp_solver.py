@@ -59,6 +59,7 @@ class VRPInput:
     location_ids: list[int]            # mapping: internal_index → original_id
     speed_kmh: float = 30.0
     solver_time_limit_seconds: int = 60
+    time_windows: Optional[list[tuple[int, int]]] = None  # [(start, end)] per node
 
 
 @dataclass
@@ -69,6 +70,7 @@ class RouteResult:
     distance_km: float
     time_seconds: float
     packages_delivered: int
+    arrival_times: list[int] = field(default_factory=list)
 
 
 @dataclass
@@ -145,6 +147,13 @@ def solve_vrp(inp: VRPInput) -> SolverOutput:
     )
     time_dimension = routing.GetDimensionOrDie("Time")
 
+    # ── Per-node time windows (if provided) ──────────────────────────────────
+    if inp.time_windows is not None:
+        for node_idx in range(n):
+            tw_start, tw_end = inp.time_windows[node_idx]
+            index = manager.NodeToIndex(node_idx)
+            time_dimension.CumulVar(index).SetRange(tw_start, tw_end)
+
     # ── Capacity dimension ────────────────────────────────────────────────────
     def demand_callback(from_idx: int) -> int:
         node = manager.IndexToNode(from_idx)
@@ -206,11 +215,14 @@ def solve_vrp(inp: VRPInput) -> SolverOutput:
         internal_nodes: list[int] = []
         route_dist_m = 0
         route_dur_s = 0
+        arrival_times: list[int] = []
 
         while not routing.IsEnd(idx):
             node = manager.IndexToNode(idx)
             internal_nodes.append(node)
             visited_nodes.add(node)
+            # Capture arrival time from time dimension
+            arrival_times.append(solution.Value(time_dimension.CumulVar(idx)))
             next_idx = solution.Value(routing.NextVar(idx))
             next_node = manager.IndexToNode(next_idx)
             route_dist_m += dist_int[node][next_node]
@@ -220,6 +232,7 @@ def solve_vrp(inp: VRPInput) -> SolverOutput:
         # Append depot at end
         end_node = manager.IndexToNode(routing.End(v))
         internal_nodes.append(end_node)
+        arrival_times.append(solution.Value(time_dimension.CumulVar(idx)))
 
         delivery_nodes = [nd for nd in internal_nodes if nd != 0]
         if not delivery_nodes:
@@ -232,6 +245,7 @@ def solve_vrp(inp: VRPInput) -> SolverOutput:
             distance_km=round(route_dist_m / _DIST_SCALE, 3),
             time_seconds=round(route_dur_s, 1),
             packages_delivered=sum(inp.demands[nd] for nd in delivery_nodes),
+            arrival_times=arrival_times,
         )
         output.routes.append(result)
 
