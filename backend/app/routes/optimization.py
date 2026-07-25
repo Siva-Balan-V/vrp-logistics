@@ -43,7 +43,7 @@ async def optimize_routes(req: OptimizeRequest) -> OptimizeResponse:
         logger.error("optimize_error", error=str(exc), exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Optimization failed: {exc}",
+            detail="Optimization failed. Check server logs for details.",
         )
 
 
