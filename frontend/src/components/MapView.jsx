@@ -79,7 +79,6 @@ export default function MapView({ result, depot, selectedVehicle, onSelectVehicl
       // Stop markers (only show all when selected, else just dots)
       vehicle.waypoints.forEach((wp, wi) => {
         if (wi === 0 || wi === vehicle.waypoints.length - 1) return // skip depot copies
-        const isDelivery = true
 
         const circle = L.circleMarker([wp.lat, wp.lon], {
           radius: isSelected ? 5 : 3,
