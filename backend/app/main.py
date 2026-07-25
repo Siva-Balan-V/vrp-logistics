@@ -16,6 +16,7 @@ from app.database import init_db
 from app.models.schemas import HealthResponse
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.routes.auth import router as auth_router
+from app.routes.companies import router as company_router
 from app.routes.optimization import router as opt_router
 from app.services import cache
 from app.services.cache import init_cache
@@ -122,6 +123,7 @@ def create_app() -> FastAPI:
 
     # ── Routers ───────────────────────────────────────────────────────────────
     app.include_router(auth_router)
+    app.include_router(company_router)
     app.include_router(opt_router)
 
     return app
