@@ -7,6 +7,7 @@ from typing import Optional
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db, is_db_enabled
@@ -93,6 +94,48 @@ async def get_routes(
             detail=f"No result found for job_id={job_id}.",
         )
     return OptimizeResponse(**result)
+
+
+# ─────────────────────────────────────────────────────────
+# GET /routes/{job_id}/export
+# ─────────────────────────────────────────────────────────
+@router.get(
+    "/routes/{job_id}/export",
+    summary="Export route as CSV or GPX",
+)
+async def export_routes(
+    job_id: str,
+    format: str = Query(default="csv", regex="^(csv|gpx)$"),
+    db: AsyncSession = Depends(get_db),
+    user: Optional[User] = Depends(get_current_user),
+) -> Response:
+    company_id = user.company_id if user else _DEFAULT_COMPANY_ID
+    result = None
+    if db is not None and is_db_enabled():
+        from app.services.job_store import get_job_from_db
+        result = await get_job_from_db(db, job_id, company_id)
+    if result is None:
+        result = cache.get_job(job_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"No result found for job_id={job_id}.")
+
+    response = OptimizeResponse(**result)
+    from app.services.export import generate_csv, generate_gpx
+
+    if format == "csv":
+        content = generate_csv(response)
+        return Response(
+            content=content,
+            media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="route_{job_id[:8]}.csv"'},
+        )
+    else:
+        content = generate_gpx(response)
+        return Response(
+            content=content,
+            media_type="application/gpx+xml",
+            headers={"Content-Disposition": f'attachment; filename="route_{job_id[:8]}.gpx"'},
+        )
 
 
 # ─────────────────────────────────────────────────────────

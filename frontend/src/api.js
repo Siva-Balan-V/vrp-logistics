@@ -31,3 +31,14 @@ export const VEHICLE_COLORS = [
 export function vehicleColor(idx) {
   return VEHICLE_COLORS[((idx % VEHICLE_COLORS.length) + VEHICLE_COLORS.length) % VEHICLE_COLORS.length]
 }
+
+export async function exportRoute(jobId, format, token) {
+  const headers = {}
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  const res = await fetch(`${BASE}/api/v1/routes/${jobId}/export?format=${format}`, { headers })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }))
+    throw new Error(err.detail || `Export failed: ${res.status}`)
+  }
+  return res.blob()
+}

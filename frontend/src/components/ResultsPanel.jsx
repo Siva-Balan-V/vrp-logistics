@@ -1,9 +1,23 @@
-import { useState } from 'react'
-import { vehicleColor } from '../api.js'
+import { useState, useCallback } from 'react'
+import { vehicleColor, exportRoute } from '../api.js'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
 export default function ResultsPanel({ result, selectedVehicle, onSelectVehicle }) {
   const [tab, setTab] = useState('routes') // routes | unassigned | chart | json
+
+  const handleExport = useCallback(async (format) => {
+    try {
+      const blob = await exportRoute(result.job_id, format)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `route_${result.job_id.slice(0, 8)}.${format}`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Export failed:', err)
+    }
+  }, [result.job_id])
 
   return (
     <div style={{
@@ -15,7 +29,7 @@ export default function ResultsPanel({ result, selectedVehicle, onSelectVehicle 
       <div style={{
         display: 'flex', background: 'var(--bg-2)',
         borderBottom: '1px solid var(--border)', padding: '0 8px',
-        flexShrink: 0,
+        flexShrink: 0, alignItems: 'center',
       }}>
         {[
           ['routes', `Routes (${result.vehicles_used})`],
@@ -31,6 +45,20 @@ export default function ResultsPanel({ result, selectedVehicle, onSelectVehicle 
             whiteSpace: 'nowrap',
           }}>{label}</button>
         ))}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+          <button onClick={() => handleExport('csv')} style={{
+            padding: '5px 10px', fontSize: 10, fontFamily: 'var(--mono)',
+            background: 'var(--bg-3)', color: 'var(--text-2)',
+            border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+            cursor: 'pointer',
+          }}>CSV</button>
+          <button onClick={() => handleExport('gpx')} style={{
+            padding: '5px 10px', fontSize: 10, fontFamily: 'var(--mono)',
+            background: 'var(--bg-3)', color: 'var(--text-2)',
+            border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+            cursor: 'pointer',
+          }}>GPX</button>
+        </div>
       </div>
 
       {/* Content */}
