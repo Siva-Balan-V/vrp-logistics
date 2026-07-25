@@ -25,6 +25,7 @@ settings = get_settings()
 
 
 async def run_optimization(req: OptimizeRequest) -> OptimizeResponse:
+    """Async entry point: builds distance matrix, then delegates sync solver."""
     job_id = req.job_id or str(uuid.uuid4())
     logger.info("optimization_start", job_id=job_id, n=len(req.deliveries))
 
@@ -61,20 +62,45 @@ async def run_optimization(req: OptimizeRequest) -> OptimizeResponse:
         solver_time_limit_seconds=settings.SOLVER_TIME_LIMIT_SECONDS,
     )
 
-    # ── Solve ─────────────────────────────────────────────────────────────────
+    # ── Solve (CPU-bound, runs in thread executor by caller) ──────────────────
     output = solve_vrp(vrp_input)
 
     # ── Format routes ─────────────────────────────────────────────────────────
+    return _format_response(req, job_id, output, all_locs, location_ids, demands, label_map, matrix_source)
+
+
+def run_optimization_sync(req: OptimizeRequest) -> OptimizeResponse:
+    """Synchronous entry point for thread executor — skips matrix building."""
+    import asyncio
+
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(run_optimization(req))
+    finally:
+        loop.close()
+
+
+def _format_response(
+    req: OptimizeRequest,
+    job_id: str,
+    output,
+    all_locs: list[Location],
+    location_ids: list[int],
+    demands: list[int],
+    label_map: dict[int, Optional[str]],
+    matrix_source: str,
+) -> OptimizeResponse:
+    loc_by_id = {loc.id: loc for loc in all_locs}
+
     vehicle_routes: list[VehicleRoute] = []
     total_dist = 0.0
     total_time = 0.0
 
     for rr in output.routes:
         waypoints = [
-            {"id": lid, "lat": all_locs[location_ids.index(lid)].lat,
-             "lon": all_locs[location_ids.index(lid)].lon}
+            {"id": lid, "lat": loc_by_id[lid].lat, "lon": loc_by_id[lid].lon}
             for lid in rr.location_ids
-            if lid in location_ids
+            if lid in loc_by_id
         ]
         vr = VehicleRoute(
             vehicle_id=rr.vehicle_id,
@@ -90,14 +116,13 @@ async def run_optimization(req: OptimizeRequest) -> OptimizeResponse:
         total_time += rr.time_seconds / 60
 
     assigned_ids = {lid for rr in output.routes for lid in rr.location_ids if lid != req.depot.id}
-    assigned_count = len(assigned_ids)
 
     response = OptimizeResponse(
         job_id=job_id,
         status="success",
         solver_time_seconds=output.solver_time_seconds,
         total_locations=len(req.deliveries),
-        assigned_count=assigned_count,
+        assigned_count=len(assigned_ids),
         unassigned_count=len(output.unassigned_ids),
         vehicles_used=len(vehicle_routes),
         total_distance_km=round(total_dist, 3),
@@ -108,7 +133,6 @@ async def run_optimization(req: OptimizeRequest) -> OptimizeResponse:
         matrix_source=matrix_source,
     )
 
-    # Cache job result
     cache.set_job(job_id, response.model_dump())
     logger.info(
         "optimization_complete",

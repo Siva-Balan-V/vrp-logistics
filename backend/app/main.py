@@ -77,7 +77,7 @@ def create_app() -> FastAPI:
         logger.error("unhandled_exception", error=str(exc), path=request.url.path, exc_info=True)
         return JSONResponse(
             status_code=500,
-            content={"status": "error", "message": "Internal server error", "detail": str(exc)},
+            content={"status": "error", "message": "Internal server error"},
         )
 
     # ── Startup ───────────────────────────────────────────────────────────────

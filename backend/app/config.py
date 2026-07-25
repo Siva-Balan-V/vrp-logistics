@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     SOLVER_TIME_LIMIT_SECONDS: int = 60
 
     # CORS
-    ALLOWED_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000", "*"]
+    ALLOWED_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
 
     # Batch processing
     OSRM_BATCH_SIZE: int = 100   # Max locations per OSRM request
