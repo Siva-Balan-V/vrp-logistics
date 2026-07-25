@@ -1,17 +1,5 @@
 import { useState, useCallback, useRef } from 'react'
 
-const SAMPLE_LONDON_MINI = {
-  depot: { id: 0, lat: 51.5074, lon: -0.1278, demand: 0, label: 'London Depot' },
-  deliveries: Array.from({ length: 30 }, (_, i) => ({
-    id: i + 1,
-    lat: 51.5074 + (Math.random() - 0.5) * 0.12,
-    lon: -0.1278 + (Math.random() - 0.5) * 0.18,
-    demand: Math.floor(Math.random() * 4) + 1,
-    label: `Stop-${String(i + 1).padStart(3, '0')}`,
-  })),
-  vehicles: { count: 5, capacity: 50, max_route_duration_seconds: 9000, speed_kmh: 30 },
-}
-
 function genSample(n, city) {
   const centres = {
     london:   [51.5074, -0.1278],

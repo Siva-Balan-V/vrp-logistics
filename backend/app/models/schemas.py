@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import Optional
+from typing import Literal, Optional
 import uuid
 
 
@@ -43,7 +43,7 @@ class OptimizeRequest(BaseModel):
         ..., min_length=1, max_length=1000, description="Delivery stop locations"
     )
     vehicles: VehicleSpec = Field(default_factory=VehicleSpec)
-    routing_backend: Optional[str] = Field(
+    routing_backend: Optional[Literal["haversine", "osrm", "ors"]] = Field(
         default=None, description="Override routing backend: osrm | ors | haversine"
     )
 
@@ -108,3 +108,4 @@ class HealthResponse(BaseModel):
     status: str = "ok"
     version: str
     routing_backend: str
+    redis_connected: bool = False

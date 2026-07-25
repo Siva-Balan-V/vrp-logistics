@@ -73,19 +73,5 @@ async def get_routes(job_id: str) -> OptimizeResponse:
     summary="List recently computed optimization jobs",
 )
 async def list_routes(limit: int = Query(default=10, ge=1, le=100)) -> dict:
-    from app.services.cache import _job_cache   # internal peek
-    jobs = list(_job_cache.keys())[-limit:]
-    summaries = []
-    for jid in jobs:
-        data = _job_cache.get(jid, {})
-        summaries.append({
-            "job_id": jid,
-            "status": data.get("status"),
-            "total_locations": data.get("total_locations"),
-            "assigned_count": data.get("assigned_count"),
-            "unassigned_count": data.get("unassigned_count"),
-            "vehicles_used": data.get("vehicles_used"),
-            "total_distance_km": data.get("total_distance_km"),
-            "solver_time_seconds": data.get("solver_time_seconds"),
-        })
+    summaries = cache.list_jobs(limit=limit)
     return {"count": len(summaries), "jobs": summaries}
