@@ -4,6 +4,7 @@ import UploadPanel from './components/UploadPanel.jsx'
 import MapView from './components/MapView.jsx'
 import ResultsPanel from './components/ResultsPanel.jsx'
 import MetricsBar from './components/MetricsBar.jsx'
+import ErrorBoundary from './ErrorBoundary.jsx'
 import { optimizeRoutes } from './api.js'
 
 export default function App() {
@@ -38,49 +39,51 @@ export default function App() {
   }, [])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-      <Header onReset={handleReset} phase={phase} />
-
-      {phase === 'results' && result && (
-        <MetricsBar result={result} />
-      )}
-
-      <main style={{
-        flex: 1,
-        display: 'grid',
-        gridTemplateColumns: phase === 'results' ? '380px 1fr' : '1fr',
-        gap: 0,
-        overflow: 'hidden',
-        height: phase === 'results' ? 'calc(100vh - 120px)' : 'calc(100vh - 64px)',
-      }}>
-        {(phase === 'idle' || phase === 'error') && (
-          <UploadPanel
-            phase={phase}
-            error={error}
-            onSubmit={handleSubmit}
-            onReset={handleReset}
-          />
-        )}
+    <ErrorBoundary onReset={handleReset}>
+      <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+        <Header onReset={handleReset} phase={phase} />
 
         {phase === 'results' && result && (
-          <>
-            <ResultsPanel
-              result={result}
-              selectedVehicle={selectedVehicle}
-              onSelectVehicle={setSelectedVehicle}
-            />
-            <MapView
-              result={result}
-              depot={jobData?.depot}
-              selectedVehicle={selectedVehicle}
-              onSelectVehicle={setSelectedVehicle}
-            />
-          </>
+          <MetricsBar result={result} />
         )}
 
-        {phase === 'solving' && <SolvingScreen />}
-      </main>
-    </div>
+        <main style={{
+          flex: 1,
+          display: 'grid',
+          gridTemplateColumns: phase === 'results' ? '380px 1fr' : '1fr',
+          gap: 0,
+          overflow: 'hidden',
+          height: phase === 'results' ? 'calc(100vh - 120px)' : 'calc(100vh - 64px)',
+        }}>
+          {(phase === 'idle' || phase === 'error') && (
+            <UploadPanel
+              phase={phase}
+              error={error}
+              onSubmit={handleSubmit}
+              onReset={handleReset}
+            />
+          )}
+
+          {phase === 'results' && result && (
+            <>
+              <ResultsPanel
+                result={result}
+                selectedVehicle={selectedVehicle}
+                onSelectVehicle={setSelectedVehicle}
+              />
+              <MapView
+                result={result}
+                depot={jobData?.depot}
+                selectedVehicle={selectedVehicle}
+                onSelectVehicle={setSelectedVehicle}
+              />
+            </>
+          )}
+
+          {phase === 'solving' && <SolvingScreen />}
+        </main>
+      </div>
+    </ErrorBoundary>
   )
 }
 
