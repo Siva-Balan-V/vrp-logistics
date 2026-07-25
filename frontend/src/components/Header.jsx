@@ -1,4 +1,8 @@
+import { useAuth } from '../context/AuthContext.jsx'
+
 export default function Header({ onReset, phase }) {
+  const { user, logout } = useAuth()
+
   return (
     <header style={{
       height: 64, background: 'var(--bg-1)',
@@ -38,6 +42,24 @@ export default function Header({ onReset, phase }) {
             border: '1px solid var(--border)', borderRadius: 'var(--radius)',
             padding: '6px 14px', fontSize: 12, fontWeight: 500
           }}>← New Job</button>
+        )}
+        {user ? (
+          <>
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-2)' }}>
+              {user.email}
+            </span>
+            <button onClick={logout} style={{
+              background: 'var(--bg-3)', color: 'var(--text-2)',
+              border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+              padding: '6px 14px', fontSize: 12,
+            }}>Logout</button>
+          </>
+        ) : (
+          <a href="/login" style={{
+            fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--accent)',
+            textDecoration: 'none', padding: '5px 10px',
+            border: '1px solid var(--accent)', borderRadius: 'var(--radius)',
+          }}>Sign In</a>
         )}
         <a href="/docs" target="_blank" rel="noopener noreferrer" style={{
           fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-3)',
