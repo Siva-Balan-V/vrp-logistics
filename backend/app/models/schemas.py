@@ -109,3 +109,36 @@ class HealthResponse(BaseModel):
     version: str
     routing_backend: str
     redis_connected: bool = False
+
+
+# ── Auth Schemas ──────────────────────────────
+
+class UserRegister(BaseModel):
+    email: str = Field(..., min_length=5, max_length=255)
+    password: str = Field(..., min_length=8, max_length=128)
+    company_name: Optional[str] = Field(default=None, max_length=200)
+
+
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+
+
+class TokenRefresh(BaseModel):
+    refresh_token: str
+
+
+class UserResponse(BaseModel):
+    id: str
+    email: str
+    role: str
+    company_id: str
+    company_name: str
+    is_active: bool
+    created_at: str
