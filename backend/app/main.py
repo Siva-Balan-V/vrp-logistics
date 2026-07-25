@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 import logging
+from contextlib import asynccontextmanager
 
 import structlog
 import uvicorn
@@ -36,6 +37,18 @@ settings = get_settings()
 # ─────────────────────────────────────────────
 # App factory
 # ─────────────────────────────────────────────
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_cache(settings.REDIS_URL)
+    logger.info(
+        "app_started",
+        name=settings.APP_NAME,
+        version=settings.APP_VERSION,
+        routing_backend=settings.ROUTING_BACKEND,
+    )
+    yield
+
+
 def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.APP_NAME,
@@ -46,6 +59,7 @@ def create_app() -> FastAPI:
         ),
         docs_url="/docs",
         redoc_url="/redoc",
+        lifespan=lifespan,
     )
 
     # ── CORS ─────────────────────────────────────────────────────────────────
@@ -82,17 +96,6 @@ def create_app() -> FastAPI:
         return JSONResponse(
             status_code=500,
             content={"status": "error", "message": "Internal server error"},
-        )
-
-    # ── Startup ───────────────────────────────────────────────────────────────
-    @app.on_event("startup")
-    async def startup():
-        init_cache(settings.REDIS_URL)
-        logger.info(
-            "app_started",
-            name=settings.APP_NAME,
-            version=settings.APP_VERSION,
-            routing_backend=settings.ROUTING_BACKEND,
         )
 
     # ── Health ────────────────────────────────────────────────────────────────
