@@ -29,5 +29,5 @@ export const VEHICLE_COLORS = [
 ]
 
 export function vehicleColor(idx) {
-  return VEHICLE_COLORS[idx % VEHICLE_COLORS.length]
+  return VEHICLE_COLORS[((idx % VEHICLE_COLORS.length) + VEHICLE_COLORS.length) % VEHICLE_COLORS.length]
 }

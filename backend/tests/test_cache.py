@@ -53,7 +53,7 @@ def test_lru_roundtrip():
 
 def test_lru_miss():
     """Cache miss should return None."""
-    coords = [(51.5074, -0.1278), (48.8566, 2.3522)]
+    coords = [(40.7128, -74.0060), (34.0522, -118.2437)]  # NYC to LA - different coords
     result = get_matrix(coords, "haversine")
     assert result is None
 
