@@ -88,8 +88,10 @@ async def _osrm_table_chunk(
     resp = await client.get(url, timeout=30.0)
     resp.raise_for_status()
     data = resp.json()
-    durations = data.get("durations", [])
-    distances = data.get("distances", [])
+    durations = data.get("durations")
+    distances = data.get("distances")
+    if not durations or not distances:
+        raise ValueError("OSRM response missing durations or distances")
     return durations, distances
 
 
@@ -196,10 +198,14 @@ async def build_ors_matrix(
                 resp = await client.post(url, json=payload, headers=headers, timeout=60.0)
                 resp.raise_for_status()
                 data = resp.json()
+                durations = data.get("durations")
+                distances = data.get("distances")
+                if not durations or not distances:
+                    raise ValueError("ORS response missing durations or distances")
                 for ri, i in enumerate(range(s_start, s_end)):
                     for j in range(n):
-                        duration_m[i][j] = data["durations"][ri][j] or 0.0
-                        distance_m[i][j] = data["distances"][ri][j] or 0.0
+                        duration_m[i][j] = durations[ri][j] or 0.0
+                        distance_m[i][j] = distances[ri][j] or 0.0
             except Exception as exc:
                 logger.warning("ors_chunk_failed", error=str(exc), s_start=s_start)
                 # Haversine fallback for this chunk
