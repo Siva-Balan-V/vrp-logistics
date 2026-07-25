@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.models.schemas import HealthResponse
+from app.middleware.rate_limit import RateLimitMiddleware
 from app.routes.optimization import router as opt_router
 from app.services.cache import init_cache
 
@@ -55,6 +56,9 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # ── Rate limiting ────────────────────────────────────────────────────────
+    app.add_middleware(RateLimitMiddleware)
 
     # ── Request timing middleware ─────────────────────────────────────────────
     @app.middleware("http")
