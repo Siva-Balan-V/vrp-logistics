@@ -36,6 +36,17 @@ async def run_optimization(req: OptimizeRequest) -> OptimizeResponse:
     demands: list[int] = [loc.demand for loc in all_locs]
     label_map: dict[int, Optional[str]] = {loc.id: loc.label for loc in all_locs}
 
+    # Extract time windows (if any location has them)
+    has_tw = any(loc.time_window_start is not None for loc in all_locs)
+    time_windows = None
+    if has_tw:
+        time_windows = []
+        for loc in all_locs:
+            if loc.time_window_start is not None and loc.time_window_end is not None:
+                time_windows.append((loc.time_window_start, loc.time_window_end))
+            else:
+                time_windows.append((0, req.vehicles.max_route_duration_seconds))
+
     backend = req.routing_backend or settings.ROUTING_BACKEND
 
     # ── Distance matrix (cached) ──────────────────────────────────────────────
@@ -60,6 +71,7 @@ async def run_optimization(req: OptimizeRequest) -> OptimizeResponse:
         location_ids=location_ids,
         speed_kmh=req.vehicles.speed_kmh,
         solver_time_limit_seconds=settings.SOLVER_TIME_LIMIT_SECONDS,
+        time_windows=time_windows,
     )
 
     # ── Solve (CPU-bound, runs in thread executor by caller) ──────────────────
@@ -110,6 +122,7 @@ def _format_response(
             time_minutes=round(rr.time_seconds / 60, 1),
             packages_delivered=rr.packages_delivered,
             waypoints=waypoints,
+            arrival_times=rr.arrival_times,
         )
         vehicle_routes.append(vr)
         total_dist += rr.distance_km

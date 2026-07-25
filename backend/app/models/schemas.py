@@ -13,6 +13,8 @@ class Location(BaseModel):
     lon: float = Field(..., ge=-180, le=180, description="Longitude")
     demand: int = Field(default=1, ge=0, description="Package demand at this location")
     label: Optional[str] = Field(default=None, description="Human-readable name")
+    time_window_start: Optional[int] = Field(default=None, ge=0, description="Earliest arrival (seconds from route start)")
+    time_window_end: Optional[int] = Field(default=None, ge=0, description="Latest arrival (seconds from route start)")
 
     @field_validator("lat")
     @classmethod
@@ -23,6 +25,13 @@ class Location(BaseModel):
     @classmethod
     def lon_precision(cls, v: float) -> float:
         return round(v, 6)
+
+    @model_validator(mode="after")
+    def time_window_valid(self) -> "Location":
+        if self.time_window_start is not None and self.time_window_end is not None:
+            if self.time_window_start > self.time_window_end:
+                raise ValueError("time_window_start must be <= time_window_end")
+        return self
 
 
 class VehicleSpec(BaseModel):
@@ -80,6 +89,7 @@ class VehicleRoute(BaseModel):
     time_minutes: float
     packages_delivered: int
     waypoints: list[dict] = Field(default_factory=list, description="[{lat, lon, id}] for mapping")
+    arrival_times: list[int] = Field(default_factory=list, description="Scheduled arrival time (seconds) at each stop")
 
 
 class OptimizeResponse(BaseModel):
