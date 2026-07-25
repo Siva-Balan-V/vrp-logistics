@@ -11,10 +11,13 @@ services:
       - ORS_API_KEY=${ORS_API_KEY:-}
       - OSRM_BASE_URL=${OSRM_BASE_URL:-http://router.project-osrm.org}
       - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/vrp
       - SOLVER_TIME_LIMIT_SECONDS=${SOLVER_TIME_LIMIT_SECONDS:-60}
       - DEBUG=false
     depends_on:
       redis:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
@@ -49,5 +52,24 @@ services:
     volumes:
       - redis_data:/data
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: vrp-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: vrp
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
 volumes:
   redis_data:
+  postgres_data:

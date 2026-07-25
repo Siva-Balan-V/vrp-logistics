@@ -19,6 +19,15 @@ class Settings(BaseSettings):
     # Redis (optional caching)
     REDIS_URL: Optional[str] = None
 
+    # Database (optional — app works without it)
+    DATABASE_URL: Optional[str] = None
+
+    # JWT
+    JWT_SECRET_KEY: str = "CHANGE-ME-IN-PRODUCTION"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
     # VRP solver defaults
     DEFAULT_MAX_VEHICLES: int = 18
     DEFAULT_MAX_ROUTE_DURATION_SECONDS: int = 9000  # 2.5 hours
