@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import asyncio
+import functools
+
 import structlog
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
 from fastapi.responses import JSONResponse
 
 from app.models.schemas import ErrorResponse, OptimizeRequest, OptimizeResponse
 from app.services import cache
-from app.services.optimizer import run_optimization
+from app.services.optimizer import run_optimization_sync
 
 logger = structlog.get_logger(__name__)
 
@@ -28,7 +31,10 @@ router = APIRouter(prefix="/api/v1", tags=["optimization"])
 )
 async def optimize_routes(req: OptimizeRequest) -> OptimizeResponse:
     try:
-        result = await run_optimization(req)
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None, functools.partial(run_optimization_sync, req)
+        )
         return result
     except ValueError as exc:
         logger.warning("validation_error", error=str(exc))
