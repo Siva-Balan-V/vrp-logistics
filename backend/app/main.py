@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 import logging
+import uuid
 from contextlib import asynccontextmanager
 
 import structlog
@@ -78,14 +79,17 @@ def create_app() -> FastAPI:
     @app.middleware("http")
     async def add_process_time_header(request: Request, call_next):
         start = time.perf_counter()
+        request_id = str(uuid.uuid4())
         structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(
             path=request.url.path,
             method=request.method,
+            request_id=request_id,
         )
         response = await call_next(request)
         elapsed = round((time.perf_counter() - start) * 1000, 1)
         response.headers["X-Process-Time-Ms"] = str(elapsed)
+        response.headers["X-Request-ID"] = request_id
         logger.info("request", status=response.status_code, ms=elapsed)
         return response
 
