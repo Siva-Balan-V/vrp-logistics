@@ -107,6 +107,25 @@ def get_job(job_id: str) -> Optional[dict]:
     return _job_cache.get(job_id)
 
 
+def list_jobs(limit: int = 10) -> list[dict]:
+    """Return summaries of the most recent jobs from the in-process cache."""
+    jobs = list(_job_cache.keys())[-limit:]
+    summaries = []
+    for jid in jobs:
+        data = _job_cache.get(jid, {})
+        summaries.append({
+            "job_id": jid,
+            "status": data.get("status"),
+            "total_locations": data.get("total_locations"),
+            "assigned_count": data.get("assigned_count"),
+            "unassigned_count": data.get("unassigned_count"),
+            "vehicles_used": data.get("vehicles_used"),
+            "total_distance_km": data.get("total_distance_km"),
+            "solver_time_seconds": data.get("solver_time_seconds"),
+        })
+    return summaries
+
+
 def set_job(job_id: str, result: dict, ttl_seconds: int = 7200) -> None:
     _job_cache[job_id] = result
     if _redis_client:
