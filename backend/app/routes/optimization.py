@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import uuid as _uuid
 
 import structlog
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.database import get_db, is_db_enabled
 from app.models.schemas import ErrorResponse, OptimizeRequest, OptimizeResponse
 from app.services import cache
 from app.services.optimizer import run_optimization_sync
@@ -14,6 +16,9 @@ from app.services.optimizer import run_optimization_sync
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["optimization"])
+
+# Default company ID for non-authenticated requests (will be replaced in auth branch)
+_DEFAULT_COMPANY_ID = _uuid.UUID("00000000-0000-0000-0000-000000000001")
 
 
 # ─────────────────────────────────────────────────────────
@@ -29,12 +34,21 @@ router = APIRouter(prefix="/api/v1", tags=["optimization"])
         "Returns optimized per-vehicle routes and any unserved locations."
     ),
 )
-async def optimize_routes(req: OptimizeRequest) -> OptimizeResponse:
+async def optimize_routes(
+    req: OptimizeRequest,
+    db: AsyncSession = Depends(get_db),
+) -> OptimizeResponse:
     try:
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
             None, functools.partial(run_optimization_sync, req)
         )
+        # Persist to PostgreSQL if available
+        if db is not None and is_db_enabled():
+            from app.services.job_store import persist_job
+            await persist_job(db, company_id=_DEFAULT_COMPANY_ID, req=req, resp=result)
+        # Always cache in Redis/LRU
+        cache.set_job(result.job_id, result.model_dump())
         return result
     except ValueError as exc:
         logger.warning("validation_error", error=str(exc))
@@ -55,12 +69,22 @@ async def optimize_routes(req: OptimizeRequest) -> OptimizeResponse:
     response_model=OptimizeResponse,
     summary="Retrieve a previous optimization result",
 )
-async def get_routes(job_id: str) -> OptimizeResponse:
-    result = cache.get_job(job_id)
+async def get_routes(
+    job_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> OptimizeResponse:
+    result = None
+    # Try PostgreSQL first
+    if db is not None and is_db_enabled():
+        from app.services.job_store import get_job_from_db
+        result = await get_job_from_db(db, job_id, _DEFAULT_COMPANY_ID)
+    # Fallback to cache
+    if result is None:
+        result = cache.get_job(job_id)
     if result is None:
         raise HTTPException(
             status_code=404,
-            detail=f"No cached result found for job_id={job_id}. Results are cached for 2 hours.",
+            detail=f"No result found for job_id={job_id}.",
         )
     return OptimizeResponse(**result)
 
@@ -72,6 +96,14 @@ async def get_routes(job_id: str) -> OptimizeResponse:
     "/routes",
     summary="List recently computed optimization jobs",
 )
-async def list_routes(limit: int = Query(default=10, ge=1, le=100)) -> dict:
-    summaries = cache.list_jobs(limit=limit)
+async def list_routes(
+    limit: int = Query(default=10, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    # Try PostgreSQL first
+    if db is not None and is_db_enabled():
+        from app.services.job_store import list_jobs_from_db
+        summaries = await list_jobs_from_db(db, _DEFAULT_COMPANY_ID, limit=limit)
+    else:
+        summaries = cache.list_jobs(limit=limit)
     return {"count": len(summaries), "jobs": summaries}
