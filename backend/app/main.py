@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import get_settings
+from app.database import init_db
 from app.models.schemas import HealthResponse
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.routes.optimization import router as opt_router
@@ -42,6 +43,7 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_cache(settings.REDIS_URL)
+    init_db(settings.DATABASE_URL)
     logger.info(
         "app_started",
         name=settings.APP_NAME,
