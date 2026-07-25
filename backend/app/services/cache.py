@@ -7,8 +7,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-import pickle
 from typing import Any, Optional
+
+import numpy as np
 
 import structlog
 from cachetools import LRUCache
@@ -38,6 +39,17 @@ def init_cache(redis_url: Optional[str] = None) -> None:
         _init_redis(redis_url)
 
 
+def is_redis_connected() -> bool:
+    """Check if Redis client is available and connected."""
+    if _redis_client is None:
+        return False
+    try:
+        _redis_client.ping()
+        return True
+    except Exception:
+        return False
+
+
 def _matrix_key(coords: list[tuple[float, float]], backend: str) -> str:
     raw = json.dumps({"coords": coords, "backend": backend}, sort_keys=True)
     return "matrix:" + hashlib.sha256(raw.encode()).hexdigest()
@@ -54,7 +66,12 @@ def get_matrix(
             data = _redis_client.get(key)
             if data:
                 logger.info("cache_hit_redis", key=key[:24])
-                return pickle.loads(data)
+                decoded = json.loads(data)
+                return (
+                    np.array(decoded["dist"]),
+                    np.array(decoded["dur"]),
+                    decoded["source"],
+                )
         except Exception as exc:
             logger.warning("redis_get_error", error=str(exc))
 
@@ -81,7 +98,13 @@ def set_matrix(
     # Redis
     if _redis_client:
         try:
-            _redis_client.setex(key, ttl_seconds, pickle.dumps(value))
+            dist_km, dur_s, matrix_source = value
+            serialized = json.dumps({
+                "dist": dist_km.tolist(),
+                "dur": dur_s.tolist(),
+                "source": matrix_source,
+            })
+            _redis_client.setex(key, ttl_seconds, serialized)
             logger.info("cache_set_redis", key=key[:24], ttl=ttl_seconds)
         except Exception as exc:
             logger.warning("redis_set_error", error=str(exc))
@@ -93,6 +116,25 @@ _job_cache: LRUCache = LRUCache(maxsize=200)
 
 def get_job(job_id: str) -> Optional[dict]:
     return _job_cache.get(job_id)
+
+
+def list_jobs(limit: int = 10) -> list[dict]:
+    """Return summaries of the most recent jobs from the in-process cache."""
+    jobs = list(_job_cache.keys())[-limit:]
+    summaries = []
+    for jid in jobs:
+        data = _job_cache.get(jid, {})
+        summaries.append({
+            "job_id": jid,
+            "status": data.get("status"),
+            "total_locations": data.get("total_locations"),
+            "assigned_count": data.get("assigned_count"),
+            "unassigned_count": data.get("unassigned_count"),
+            "vehicles_used": data.get("vehicles_used"),
+            "total_distance_km": data.get("total_distance_km"),
+            "solver_time_seconds": data.get("solver_time_seconds"),
+        })
+    return summaries
 
 
 def set_job(job_id: str, result: dict, ttl_seconds: int = 7200) -> None:

@@ -13,17 +13,6 @@ export async function optimizeRoutes(payload) {
   return res.json()
 }
 
-export async function getRoutes(jobId) {
-  const res = await fetch(`${BASE}/api/v1/routes/${jobId}`)
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  return res.json()
-}
-
-export async function checkHealth() {
-  const res = await fetch(`${BASE}/health`)
-  return res.json()
-}
-
 export const VEHICLE_COLORS = [
   '#f5a623','#4b9eff','#3ecf8e','#f2614a','#c97ff5',
   '#54d2f5','#f5d623','#ff6b9d','#7fff6b','#ff9e6b',

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import asyncio
+import functools
+
 import structlog
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
 from fastapi.responses import JSONResponse
 
 from app.models.schemas import ErrorResponse, OptimizeRequest, OptimizeResponse
 from app.services import cache
-from app.services.optimizer import run_optimization
+from app.services.optimizer import run_optimization_sync
 
 logger = structlog.get_logger(__name__)
 
@@ -28,7 +31,10 @@ router = APIRouter(prefix="/api/v1", tags=["optimization"])
 )
 async def optimize_routes(req: OptimizeRequest) -> OptimizeResponse:
     try:
-        result = await run_optimization(req)
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None, functools.partial(run_optimization_sync, req)
+        )
         return result
     except ValueError as exc:
         logger.warning("validation_error", error=str(exc))
@@ -37,7 +43,7 @@ async def optimize_routes(req: OptimizeRequest) -> OptimizeResponse:
         logger.error("optimize_error", error=str(exc), exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Optimization failed: {exc}",
+            detail="Optimization failed. Check server logs for details.",
         )
 
 
@@ -67,19 +73,5 @@ async def get_routes(job_id: str) -> OptimizeResponse:
     summary="List recently computed optimization jobs",
 )
 async def list_routes(limit: int = Query(default=10, ge=1, le=100)) -> dict:
-    from app.services.cache import _job_cache   # internal peek
-    jobs = list(_job_cache.keys())[-limit:]
-    summaries = []
-    for jid in jobs:
-        data = _job_cache.get(jid, {})
-        summaries.append({
-            "job_id": jid,
-            "status": data.get("status"),
-            "total_locations": data.get("total_locations"),
-            "assigned_count": data.get("assigned_count"),
-            "unassigned_count": data.get("unassigned_count"),
-            "vehicles_used": data.get("vehicles_used"),
-            "total_distance_km": data.get("total_distance_km"),
-            "solver_time_seconds": data.get("solver_time_seconds"),
-        })
+    summaries = cache.list_jobs(limit=limit)
     return {"count": len(summaries), "jobs": summaries}

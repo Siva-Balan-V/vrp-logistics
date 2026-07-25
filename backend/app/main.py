@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import time
 import logging
+import uuid
+from contextlib import asynccontextmanager
 
 import structlog
 import uvicorn
@@ -11,7 +13,9 @@ from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.models.schemas import HealthResponse
+from app.middleware.rate_limit import RateLimitMiddleware
 from app.routes.optimization import router as opt_router
+from app.services import cache
 from app.services.cache import init_cache
 
 # ─────────────────────────────────────────────
@@ -35,6 +39,18 @@ settings = get_settings()
 # ─────────────────────────────────────────────
 # App factory
 # ─────────────────────────────────────────────
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_cache(settings.REDIS_URL)
+    logger.info(
+        "app_started",
+        name=settings.APP_NAME,
+        version=settings.APP_VERSION,
+        routing_backend=settings.ROUTING_BACKEND,
+    )
+    yield
+
+
 def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.APP_NAME,
@@ -45,6 +61,7 @@ def create_app() -> FastAPI:
         ),
         docs_url="/docs",
         redoc_url="/redoc",
+        lifespan=lifespan,
     )
 
     # ── CORS ─────────────────────────────────────────────────────────────────
@@ -56,18 +73,24 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # ── Rate limiting ────────────────────────────────────────────────────────
+    app.add_middleware(RateLimitMiddleware)
+
     # ── Request timing middleware ─────────────────────────────────────────────
     @app.middleware("http")
     async def add_process_time_header(request: Request, call_next):
         start = time.perf_counter()
+        request_id = str(uuid.uuid4())
         structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(
             path=request.url.path,
             method=request.method,
+            request_id=request_id,
         )
         response = await call_next(request)
         elapsed = round((time.perf_counter() - start) * 1000, 1)
         response.headers["X-Process-Time-Ms"] = str(elapsed)
+        response.headers["X-Request-ID"] = request_id
         logger.info("request", status=response.status_code, ms=elapsed)
         return response
 
@@ -77,18 +100,7 @@ def create_app() -> FastAPI:
         logger.error("unhandled_exception", error=str(exc), path=request.url.path, exc_info=True)
         return JSONResponse(
             status_code=500,
-            content={"status": "error", "message": "Internal server error", "detail": str(exc)},
-        )
-
-    # ── Startup ───────────────────────────────────────────────────────────────
-    @app.on_event("startup")
-    async def startup():
-        init_cache(settings.REDIS_URL)
-        logger.info(
-            "app_started",
-            name=settings.APP_NAME,
-            version=settings.APP_VERSION,
-            routing_backend=settings.ROUTING_BACKEND,
+            content={"status": "error", "message": "Internal server error"},
         )
 
     # ── Health ────────────────────────────────────────────────────────────────
@@ -98,6 +110,7 @@ def create_app() -> FastAPI:
             status="ok",
             version=settings.APP_VERSION,
             routing_backend=settings.ROUTING_BACKEND,
+            redis_connected=cache.is_redis_connected(),
         )
 
     @app.get("/", tags=["meta"])
