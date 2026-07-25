@@ -7,8 +7,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-import pickle
 from typing import Any, Optional
+
+import numpy as np
 
 import structlog
 from cachetools import LRUCache
@@ -54,7 +55,12 @@ def get_matrix(
             data = _redis_client.get(key)
             if data:
                 logger.info("cache_hit_redis", key=key[:24])
-                return pickle.loads(data)
+                decoded = json.loads(data)
+                return (
+                    np.array(decoded["dist"]),
+                    np.array(decoded["dur"]),
+                    decoded["source"],
+                )
         except Exception as exc:
             logger.warning("redis_get_error", error=str(exc))
 
@@ -81,7 +87,13 @@ def set_matrix(
     # Redis
     if _redis_client:
         try:
-            _redis_client.setex(key, ttl_seconds, pickle.dumps(value))
+            dist_km, dur_s, matrix_source = value
+            serialized = json.dumps({
+                "dist": dist_km.tolist(),
+                "dur": dur_s.tolist(),
+                "source": matrix_source,
+            })
+            _redis_client.setex(key, ttl_seconds, serialized)
             logger.info("cache_set_redis", key=key[:24], ttl=ttl_seconds)
         except Exception as exc:
             logger.warning("redis_set_error", error=str(exc))
