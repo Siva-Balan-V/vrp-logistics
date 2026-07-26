@@ -30,6 +30,7 @@ function genSample(n, city, enableTimeWindows = false, useTwoDepots = false) {
       lon: parseFloat((clon + r * Math.sin(angle) * 1.4).toFixed(6)),
       demand: Math.floor(Math.random() * 4) + 1,
       label: `Stop-${String(i + 1).padStart(3, '0')}`,
+      priority: Math.floor(Math.random() * 5) + 1,
     }
     if (enableTimeWindows) {
       const start = Math.floor(Math.random() * 7200)

@@ -111,12 +111,26 @@ function RouteList({ vehicles, selectedVehicle, onSelect }) {
               <span style={{ fontFamily: 'var(--mono)', fontSize: 11, fontWeight: 600, color }}>
                 VEHICLE {v.vehicle_id}
               </span>
-              <span style={{
-                background: 'var(--bg-3)', fontSize: 10, fontFamily: 'var(--mono)',
-                color: 'var(--text-3)', padding: '2px 6px', borderRadius: 3
-              }}>
-                {v.route.length - 2} stops
-              </span>
+              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                {(() => {
+                  const priorities = v.waypoints.map(wp => wp.priority).filter(Boolean)
+                  const maxP = priorities.length ? Math.max(...priorities) : 1
+                  const pColors = { 5: '#f2614a', 4: '#f5a623', 3: '#f5d623', 2: '#4b9eff', 1: '#6b7280' }
+                  return priorities.length > 0 ? (
+                    <span style={{
+                      fontSize: 9, fontFamily: 'var(--mono)', fontWeight: 600,
+                      color: pColors[maxP], background: `${pColors[maxP]}15`,
+                      padding: '1px 5px', borderRadius: 3,
+                    }}>P{maxP}</span>
+                  ) : null
+                })()}
+                <span style={{
+                  background: 'var(--bg-3)', fontSize: 10, fontFamily: 'var(--mono)',
+                  color: 'var(--text-3)', padding: '2px 6px', borderRadius: 3
+                }}>
+                  {v.route.length - 2} stops
+                </span>
+              </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
               <Metric label="Distance" value={`${v.distance_km} km`} />

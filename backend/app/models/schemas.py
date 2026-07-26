@@ -13,6 +13,7 @@ class Location(BaseModel):
     lon: float = Field(..., ge=-180, le=180, description="Longitude")
     demand: int = Field(default=1, ge=0, description="Package demand at this location")
     label: Optional[str] = Field(default=None, description="Human-readable name")
+    priority: int = Field(default=1, ge=1, le=5, description="Priority (1=low, 5=high)")
     time_window_start: Optional[int] = Field(default=None, ge=0, description="Earliest arrival (seconds from route start)")
     time_window_end: Optional[int] = Field(default=None, ge=0, description="Latest arrival (seconds from route start)")
 

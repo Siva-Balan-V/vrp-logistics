@@ -61,6 +61,7 @@ class VRPInput:
     solver_time_limit_seconds: int = 60
     time_windows: Optional[list[tuple[int, int]]] = None  # [(start, end)] per node
     num_depots: int = 1
+    priorities: Optional[list[int]] = None  # 1-5 per node, higher = harder to drop
 
 
 @dataclass
@@ -172,12 +173,15 @@ def solve_vrp(inp: VRPInput) -> SolverOutput:
         "Capacity",
     )
 
-    # ── Allow dropping nodes (unassigned) with a high penalty ─────────────────
-    #   Penalty > max possible route distance → solver prefers visiting over dropping
-    #   but will drop if constraints cannot be satisfied.
+    # ── Allow dropping nodes (unassigned) with priority-scaled penalty ─────────
+    #   Higher priority = higher penalty = solver prefers visiting over dropping
     max_dist = int(np.max(inp.distance_matrix) * _DIST_SCALE * n)
-    penalty = max(max_dist * 10, 1_000_000)
     for node_idx in range(inp.num_depots, n):  # skip all depots
+        if inp.priorities:
+            priority = inp.priorities[node_idx]
+            penalty = max(int(max_dist * 10 * priority / 5), 1_000_000)
+        else:
+            penalty = max(max_dist * 10, 1_000_000)
         routing.AddDisjunction([manager.NodeToIndex(node_idx)], penalty)
 
     # ── Search parameters ─────────────────────────────────────────────────────
