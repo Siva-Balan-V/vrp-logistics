@@ -48,6 +48,9 @@ async def run_optimization(req: OptimizeRequest) -> OptimizeResponse:
             else:
                 time_windows.append((0, req.vehicles.max_route_duration_seconds))
 
+    # Extract priorities
+    priorities = [loc.priority for loc in all_locs]
+
     backend = req.routing_backend or settings.ROUTING_BACKEND
 
     # ── Distance matrix (cached) ──────────────────────────────────────────────
@@ -74,6 +77,7 @@ async def run_optimization(req: OptimizeRequest) -> OptimizeResponse:
         solver_time_limit_seconds=settings.SOLVER_TIME_LIMIT_SECONDS,
         time_windows=time_windows,
         num_depots=num_depots,
+        priorities=priorities,
     )
 
     # ── Solve (CPU-bound, runs in thread executor by caller) ──────────────────
