@@ -52,14 +52,15 @@ class VRPInput:
     num_vehicles: int
     vehicle_capacity: int
     max_route_duration_seconds: int
-    # n×n matrices (index 0 = depot)
+    # n×n matrices (indices 0..num_depots-1 are depots)
     distance_matrix: np.ndarray        # kilometres
     duration_matrix: np.ndarray        # seconds
-    demands: list[int]                 # demand[0] = 0 (depot)
+    demands: list[int]                 # demand[0..num_depots-1] = 0 (depots)
     location_ids: list[int]            # mapping: internal_index → original_id
     speed_kmh: float = 30.0
     solver_time_limit_seconds: int = 60
     time_windows: Optional[list[tuple[int, int]]] = None  # [(start, end)] per node
+    num_depots: int = 1
 
 
 @dataclass
@@ -117,7 +118,10 @@ def solve_vrp(inp: VRPInput) -> SolverOutput:
     )
 
     # ── Routing Manager ──────────────────────────────────────────────────────
-    manager = pywrapcp.RoutingIndexManager(n, inp.num_vehicles, 0)  # depot = 0
+    # Assign vehicles to depots round-robin
+    starts = [i % inp.num_depots for i in range(inp.num_vehicles)]
+    ends = starts[:]
+    manager = pywrapcp.RoutingIndexManager(n, inp.num_vehicles, starts, ends)
     routing = pywrapcp.RoutingModel(manager)
 
     # ── Distance callback ────────────────────────────────────────────────────
@@ -173,7 +177,7 @@ def solve_vrp(inp: VRPInput) -> SolverOutput:
     #   but will drop if constraints cannot be satisfied.
     max_dist = int(np.max(inp.distance_matrix) * _DIST_SCALE * n)
     penalty = max(max_dist * 10, 1_000_000)
-    for node_idx in range(1, n):           # skip depot (0)
+    for node_idx in range(inp.num_depots, n):  # skip all depots
         routing.AddDisjunction([manager.NodeToIndex(node_idx)], penalty)
 
     # ── Search parameters ─────────────────────────────────────────────────────
@@ -234,7 +238,7 @@ def solve_vrp(inp: VRPInput) -> SolverOutput:
         internal_nodes.append(end_node)
         arrival_times.append(solution.Value(time_dimension.CumulVar(idx)))
 
-        delivery_nodes = [nd for nd in internal_nodes if nd != 0]
+        delivery_nodes = [nd for nd in internal_nodes if nd >= inp.num_depots]
         if not delivery_nodes:
             continue   # empty vehicle – skip
 
@@ -250,7 +254,7 @@ def solve_vrp(inp: VRPInput) -> SolverOutput:
         output.routes.append(result)
 
     # ── Unassigned nodes ──────────────────────────────────────────────────────
-    for node in range(1, n):
+    for node in range(inp.num_depots, n):
         if node not in visited_nodes:
             output.unassigned_internal.append(node)
             output.unassigned_ids.append(inp.location_ids[node])

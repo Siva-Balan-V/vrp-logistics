@@ -2,20 +2,27 @@ import { useEffect, useRef, useMemo } from 'react'
 import L from 'leaflet'
 import { vehicleColor } from '../api.js'
 
-export default function MapView({ result, depot, selectedVehicle, onSelectVehicle }) {
+export default function MapView({ result, depot, depots, selectedVehicle, onSelectVehicle }) {
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const layersRef = useRef([])
 
-  // Centre the map on the depot or mean of waypoints
+  // Support both single depot and multiple depots
+  const depotList = useMemo(() => {
+    if (depots && depots.length) return depots
+    if (depot) return [depot]
+    return []
+  }, [depot, depots])
+
+  // Centre the map on the first depot or mean of waypoints
   const centre = useMemo(() => {
-    if (depot) return [depot.lat, depot.lon]
+    if (depotList.length) return [depotList[0].lat, depotList[0].lon]
     const pts = result.vehicles.flatMap(v => v.waypoints)
     if (!pts.length) return [51.5074, -0.1278]
     const lat = pts.reduce((s, p) => s + p.lat, 0) / pts.length
     const lon = pts.reduce((s, p) => s + p.lon, 0) / pts.length
     return [lat, lon]
-  }, [depot, result])
+  }, [depotList, result])
 
   // Initialize map
   useEffect(() => {
@@ -102,8 +109,8 @@ export default function MapView({ result, depot, selectedVehicle, onSelectVehicl
       })
     })
 
-    // Depot marker
-    if (depot) {
+    // Depot markers (support multiple depots)
+    depotList.forEach((dep, idx) => {
       const depotIcon = L.divIcon({
         html: `<div style="
           width:24px;height:24px;
@@ -112,16 +119,18 @@ export default function MapView({ result, depot, selectedVehicle, onSelectVehicl
           border-radius:50% 50% 50% 0;
           transform:rotate(-45deg);
           box-shadow:0 2px 8px rgba(0,0,0,0.4);
+          ${idx > 0 ? 'opacity:0.7;' : ''}
         "></div>`,
         iconSize: [24, 24],
         iconAnchor: [12, 24],
       })
-      const dm = L.marker([depot.lat, depot.lon], { icon: depotIcon })
+      const label = depotList.length > 1 ? `Depot ${String.fromCharCode(65 + idx)}` : 'Depot'
+      const dm = L.marker([dep.lat, dep.lon], { icon: depotIcon })
         .addTo(map)
-        .bindTooltip(`<strong>Depot</strong><br/>${depot.label || 'Depot'}`, { sticky: true })
+        .bindTooltip(`<strong>${label}</strong><br/>${dep.label || label}`, { sticky: true })
       layersRef.current.push(dm)
-      bounds.push([depot.lat, depot.lon])
-    }
+      bounds.push([dep.lat, dep.lon])
+    })
 
     // Unassigned locations (red X)
     // (We don't have their coords in the result, so skip for now)
