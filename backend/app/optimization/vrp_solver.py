@@ -118,8 +118,10 @@ def solve_vrp(inp: VRPInput) -> SolverOutput:
     )
 
     # ── Routing Manager ──────────────────────────────────────────────────────
-    depot_indices = list(range(inp.num_depots))
-    manager = pywrapcp.RoutingIndexManager(n, inp.num_vehicles, depot_indices)
+    # Assign vehicles to depots round-robin
+    starts = [i % inp.num_depots for i in range(inp.num_vehicles)]
+    ends = starts[:]
+    manager = pywrapcp.RoutingIndexManager(n, inp.num_vehicles, starts, ends)
     routing = pywrapcp.RoutingModel(manager)
 
     # ── Distance callback ────────────────────────────────────────────────────
