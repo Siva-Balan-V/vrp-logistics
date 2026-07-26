@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 import uuid
 
 
@@ -8,7 +8,7 @@ import uuid
 # ─────────────────────────────────────────────
 
 class Location(BaseModel):
-    id: int = Field(..., description="Unique location ID (0 = depot)")
+    id: int = Field(..., description="Unique location ID")
     lat: float = Field(..., ge=-90, le=90, description="Latitude")
     lon: float = Field(..., ge=-180, le=180, description="Longitude")
     demand: int = Field(default=1, ge=0, description="Package demand at this location")
@@ -47,7 +47,7 @@ class VehicleSpec(BaseModel):
 
 class OptimizeRequest(BaseModel):
     job_id: Optional[str] = Field(default=None, description="Optional client job ID")
-    depot: Location = Field(..., description="Starting/ending depot location")
+    depots: list[Location] = Field(default=[], description="Depot locations (at least one required)")
     deliveries: list[Location] = Field(
         ..., min_length=1, max_length=1000, description="Delivery stop locations"
     )
@@ -56,18 +56,35 @@ class OptimizeRequest(BaseModel):
         default=None, description="Override routing backend: osrm | ors | haversine"
     )
 
+    @model_validator(mode="before")
+    @classmethod
+    def handle_depot_alias(cls, data: Any) -> Any:
+        """Support old-style 'depot' field for backward compatibility."""
+        if isinstance(data, dict):
+            if "depot" in data and "depots" not in data:
+                data["depots"] = [data.pop("depot")]
+            elif "depot" in data and "depots" in data:
+                data.pop("depot")
+        return data
+
     @model_validator(mode="after")
-    def unique_ids(self) -> "OptimizeRequest":
-        ids = [d.id for d in self.deliveries]
-        if len(ids) != len(set(ids)):
+    def validate_request(self) -> "OptimizeRequest":
+        if not self.depots:
+            raise ValueError("At least one depot is required")
+        depot_ids = [d.id for d in self.depots]
+        if len(depot_ids) != len(set(depot_ids)):
+            raise ValueError("Depot IDs must be unique")
+        delivery_ids = [d.id for d in self.deliveries]
+        if len(delivery_ids) != len(set(delivery_ids)):
             raise ValueError("Delivery location IDs must be unique")
-        if self.depot.id in ids:
-            raise ValueError("Depot ID must not conflict with delivery IDs")
+        overlap = set(depot_ids) & set(delivery_ids)
+        if overlap:
+            raise ValueError(f"Depot IDs {overlap} conflict with delivery IDs")
         return self
 
     model_config = {"json_schema_extra": {
         "example": {
-            "depot": {"id": 0, "lat": 51.5074, "lon": -0.1278, "demand": 0, "label": "London Depot"},
+            "depots": [{"id": 0, "lat": 51.5074, "lon": -0.1278, "demand": 0, "label": "London Depot"}],
             "deliveries": [
                 {"id": 1, "lat": 51.515, "lon": -0.072, "demand": 2, "label": "Stop A"},
                 {"id": 2, "lat": 51.508, "lon": -0.094, "demand": 1, "label": "Stop B"},

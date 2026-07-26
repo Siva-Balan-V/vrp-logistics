@@ -29,8 +29,9 @@ async def run_optimization(req: OptimizeRequest) -> OptimizeResponse:
     job_id = req.job_id or str(uuid.uuid4())
     logger.info("optimization_start", job_id=job_id, n=len(req.deliveries))
 
-    # ── Build ordered location list (depot first) ─────────────────────────────
-    all_locs: list[Location] = [req.depot] + req.deliveries
+    # ── Build ordered location list (depots first, then deliveries) ───────────
+    all_locs: list[Location] = list(req.depots) + list(req.deliveries)
+    num_depots = len(req.depots)
     coords: list[tuple[float, float]] = [(loc.lat, loc.lon) for loc in all_locs]
     location_ids: list[int] = [loc.id for loc in all_locs]
     demands: list[int] = [loc.demand for loc in all_locs]
@@ -72,6 +73,7 @@ async def run_optimization(req: OptimizeRequest) -> OptimizeResponse:
         speed_kmh=req.vehicles.speed_kmh,
         solver_time_limit_seconds=settings.SOLVER_TIME_LIMIT_SECONDS,
         time_windows=time_windows,
+        num_depots=num_depots,
     )
 
     # ── Solve (CPU-bound, runs in thread executor by caller) ──────────────────
@@ -128,7 +130,8 @@ def _format_response(
         total_dist += rr.distance_km
         total_time += rr.time_seconds / 60
 
-    assigned_ids = {lid for rr in output.routes for lid in rr.location_ids if lid != req.depot.id}
+    depot_ids = {d.id for d in req.depots}
+    assigned_ids = {lid for rr in output.routes for lid in rr.location_ids if lid not in depot_ids}
 
     response = OptimizeResponse(
         job_id=job_id,
