@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react'
 
-function genSample(n, city, enableTimeWindows = false) {
+function genSample(n, city, enableTimeWindows = false, useTwoDepots = false) {
   const centres = {
     london:   [51.5074, -0.1278],
     berlin:   [52.520,   13.405],
@@ -9,26 +9,38 @@ function genSample(n, city, enableTimeWindows = false) {
     tokyo:    [35.6762, 139.650],
   }
   const [clat, clon] = centres[city] || centres.london
+  const depots = [
+    { id: 0, lat: clat, lon: clon, demand: 0, label: `${city.charAt(0).toUpperCase() + city.slice(1)} Depot A` },
+  ]
+  if (useTwoDepots) {
+    const offset = 0.04
+    depots.push({
+      id: 1, lat: parseFloat((clat + offset).toFixed(6)),
+      lon: parseFloat((clon + offset).toFixed(6)),
+      demand: 0, label: `${city.charAt(0).toUpperCase() + city.slice(1)} Depot B`,
+    })
+  }
+  const idOffset = useTwoDepots ? 2 : 1
   const deliveries = Array.from({ length: n }, (_, i) => {
     const angle = Math.random() * 2 * Math.PI
     const r = Math.random() * 0.09
     const delivery = {
-      id: i + 1,
+      id: i + idOffset,
       lat: parseFloat((clat + r * Math.cos(angle)).toFixed(6)),
       lon: parseFloat((clon + r * Math.sin(angle) * 1.4).toFixed(6)),
       demand: Math.floor(Math.random() * 4) + 1,
       label: `Stop-${String(i + 1).padStart(3, '0')}`,
     }
     if (enableTimeWindows) {
-      const start = Math.floor(Math.random() * 7200) // 0-7200s (0-2h)
-      const duration = Math.floor(Math.random() * 3600) + 1800 // 1800-5400s (30min-1.5h)
+      const start = Math.floor(Math.random() * 7200)
+      const duration = Math.floor(Math.random() * 3600) + 1800
       delivery.time_window_start = start
       delivery.time_window_end = start + duration
     }
     return delivery
   })
   return {
-    depot: { id: 0, lat: clat, lon: clon, demand: 0, label: `${city.charAt(0).toUpperCase() + city.slice(1)} Depot` },
+    depots,
     deliveries,
     vehicles: { count: 18, capacity: 50, max_route_duration_seconds: 9000, speed_kmh: 30 },
   }
@@ -43,19 +55,20 @@ export default function UploadPanel({ phase, error, onSubmit, onReset }) {
   const [speed, setSpeed] = useState(30)
   const [routing, setRouting] = useState('haversine')
   const [enableTimeWindows, setEnableTimeWindows] = useState(false)
+  const [useTwoDepots, setUseTwoDepots] = useState(false)
   const [pasteText, setPasteText] = useState('')
   const [pasteError, setPasteError] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const fileRef = useRef(null)
 
   const handleGenerate = useCallback(() => {
-    const payload = genSample(nLocs, city, enableTimeWindows)
+    const payload = genSample(nLocs, city, enableTimeWindows, useTwoDepots)
     payload.vehicles.count = nVehicles
     payload.vehicles.capacity = capacity
     payload.vehicles.speed_kmh = speed
     payload.routing_backend = routing
     onSubmit(payload)
-  }, [nLocs, city, nVehicles, capacity, speed, routing, enableTimeWindows, onSubmit])
+  }, [nLocs, city, nVehicles, capacity, speed, routing, enableTimeWindows, useTwoDepots, onSubmit])
 
   const handleFileUpload = useCallback((file) => {
     const reader = new FileReader()
@@ -243,6 +256,27 @@ export default function UploadPanel({ phase, error, onSubmit, onReset }) {
           </label>
           <span style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
             Each stop gets a random delivery window
+          </span>
+        </div>
+
+        {/* Multi-depot toggle */}
+        <div style={{
+          background: 'var(--bg-1)', border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-lg)', padding: '16px 20px',
+          marginBottom: 20, display: 'flex', alignItems: 'center',
+          gap: 12,
+        }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8,
+            cursor: 'pointer', fontSize: 12, color: 'var(--text-2)', fontFamily: 'var(--mono)' }}>
+            <input type="checkbox"
+              checked={useTwoDepots}
+              onChange={(e) => setUseTwoDepots(e.target.checked)}
+              style={{ accentColor: 'var(--accent)' }}
+            />
+            Use 2 depots (multi-depot)
+          </label>
+          <span style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
+            Vehicles assigned to nearest depot
           </span>
         </div>
 

@@ -95,6 +95,7 @@ function AppContent() {
             <MapView
               result={result}
               depot={jobData?.depot}
+              depots={jobData?.depots}
               selectedVehicle={selectedVehicle}
               onSelectVehicle={setSelectedVehicle}
             />
