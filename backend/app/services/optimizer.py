@@ -116,7 +116,7 @@ def _format_response(
 
     for rr in output.routes:
         waypoints = [
-            {"id": lid, "lat": loc_by_id[lid].lat, "lon": loc_by_id[lid].lon}
+            {"id": lid, "lat": loc_by_id[lid].lat, "lon": loc_by_id[lid].lon, "priority": loc_by_id[lid].priority}
             for lid in rr.location_ids
             if lid in loc_by_id
         ]

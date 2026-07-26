@@ -87,10 +87,14 @@ export default function MapView({ result, depot, depots, selectedVehicle, onSele
       vehicle.waypoints.forEach((wp, wi) => {
         if (wi === 0 || wi === vehicle.waypoints.length - 1) return // skip depot copies
 
+        // Priority-based color: P5=red, P4=orange, P3=yellow, P2=blue, P1=gray
+        const priorityColors = { 5: '#f2614a', 4: '#f5a623', 3: '#f5d623', 2: '#4b9eff', 1: '#6b7280' }
+        const pColor = priorityColors[wp.priority] || priorityColors[1]
+
         const circle = L.circleMarker([wp.lat, wp.lon], {
           radius: isSelected ? 5 : 3,
-          color,
-          fillColor: color,
+          color: pColor,
+          fillColor: pColor,
           fillOpacity: opacity,
           weight: 1,
           opacity,
@@ -99,9 +103,10 @@ export default function MapView({ result, depot, depots, selectedVehicle, onSele
         if (isSelected) {
           circle.bindTooltip(`
             <div style="font-family:monospace;font-size:11px">
-              <strong>Stop ${wi}</strong><br/>
-              ID: ${wp.id}<br/>
+              <strong>Stop ${wp.id}</strong> <span style="color:${pColor}">P${wp.priority || 1}</span><br/>
               ${wp.lat.toFixed(5)}, ${wp.lon.toFixed(5)}
+            </div>
+          `, { sticky: true })
             </div>
           `, { sticky: true })
         }
