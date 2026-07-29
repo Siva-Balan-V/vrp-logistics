@@ -10,7 +10,9 @@ services:
       - ROUTING_BACKEND=${ROUTING_BACKEND:-haversine}
       - ORS_API_KEY=${ORS_API_KEY:-}
       - OSRM_BASE_URL=${OSRM_BASE_URL:-http://router.project-osrm.org}
-      - REDIS_URL=redis://redis:6379/0
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-}@redis:6379/0
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-}
+      - JWT_ALGORITHM=HS256
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/vrp
       - SOLVER_TIME_LIMIT_SECONDS=${SOLVER_TIME_LIMIT_SECONDS:-60}
       - DEBUG=false
@@ -42,9 +44,11 @@ services:
     container_name: vrp-redis
     ports:
       - "6379:6379"
-    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: >
+      redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+      ${REDIS_PASSWORD:+--requirepass ${REDIS_PASSWORD}}
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli ${REDIS_PASSWORD:+-a ${REDIS_PASSWORD}} ping"]
       interval: 10s
       timeout: 5s
       retries: 5

@@ -28,7 +28,8 @@ def _init_redis(url: str) -> None:
         import redis
         _redis_client = redis.from_url(url, decode_responses=False, socket_connect_timeout=2)
         _redis_client.ping()
-        logger.info("redis_connected", url=url)
+        safe_url = url.split("@")[-1] if "@" in url else url
+        logger.info("redis_connected", url=safe_url)
     except Exception as exc:
         logger.warning("redis_unavailable", error=str(exc))
         _redis_client = None
