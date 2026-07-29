@@ -11,7 +11,7 @@ from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db, is_db_enabled
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, require_user
 from app.models.db import User
 from app.models.schemas import ErrorResponse, OptimizeRequest, OptimizeResponse
 from app.services import cache
@@ -40,7 +40,7 @@ _DEFAULT_COMPANY_ID = _uuid.UUID("00000000-0000-0000-0000-000000000001")
 async def optimize_routes(
     req: OptimizeRequest,
     db: AsyncSession = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user),
+    user: User = Depends(require_user),
 ) -> OptimizeResponse:
     try:
         loop = asyncio.get_event_loop()
