@@ -46,6 +46,10 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     init_cache(settings.REDIS_URL)
     init_db(settings.DATABASE_URL)
+    if not settings.JWT_SECRET_KEY:
+        logger.warning("jwt_secret_not_set", detail="JWT_SECRET_KEY is empty — set it in .env for production")
+    elif settings.JWT_SECRET_KEY == "CHANGE-ME-IN-PRODUCTION":
+        logger.warning("jwt_secret_default", detail="JWT_SECRET_KEY is still the default — change it in .env for production")
     logger.info(
         "app_started",
         name=settings.APP_NAME,
@@ -73,8 +77,10 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=settings.ALLOWED_ORIGINS,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
+        expose_headers=["X-Request-ID", "X-Process-Time-Ms"],
+        max_age=3600,
     )
 
     # ── Rate limiting ────────────────────────────────────────────────────────
@@ -133,4 +139,10 @@ app = create_app()
 
 
 if __name__ == "__main__":
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=settings.DEBUG)
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=settings.DEBUG,
+        limit_max_body_size=10_485_760,  # 10 MB
+    )
