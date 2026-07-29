@@ -1,9 +1,13 @@
 """
 Simple in-memory sliding window rate limiter.
+
+Per-IP-per-path tracking with periodic cleanup to prevent unbounded memory growth.
+Returns standard rate-limit headers (X-RateLimit-Limit, X-RateLimit-Remaining, Retry-After).
 """
 
 from __future__ import annotations
 
+import math
 import time
 from collections import defaultdict
 
@@ -19,6 +23,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.default_limit = default_limit
         self.window = window_seconds
         self._hits: dict[str, list[float]] = defaultdict(list)
+        self._last_cleanup: float = time.monotonic()
 
     def _get_client_ip(self, request: Request) -> str:
         forwarded = request.headers.get("X-Forwarded-For")
@@ -26,7 +31,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return forwarded.split(",")[0].strip()
         return request.client.host if request.client else "unknown"
 
-    def _is_rate_limited(self, client_ip: str, path: str) -> bool:
+    def _cleanup_stale(self) -> None:
+        now = time.monotonic()
+        cutoff = now - self.window
+        stale_keys = [k for k, v in self._hits.items() if not v or v[-1] < cutoff]
+        for k in stale_keys:
+            del self._hits[k]
+
+    def _check_limit(self, client_ip: str, path: str) -> tuple[int, int, float]:
         now = time.monotonic()
         cutoff = now - self.window
 
@@ -34,22 +46,45 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         key = f"{client_ip}:{path}"
         hits = self._hits[key]
-        self._hits[key] = [t for t in hits if t > cutoff]
+        active = [t for t in hits if t > cutoff]
+        self._hits[key] = active
 
-        if len(self._hits[key]) >= limit:
-            return True
+        remaining = max(0, limit - len(active))
+        retry_after = 0.0
+        if len(active) >= limit:
+            retry_after = max(0.0, self.window - (now - active[0]))
 
-        self._hits[key].append(now)
-        return False
+        if len(active) < limit:
+            self._hits[key].append(now)
+
+        return limit, remaining, retry_after
 
     async def dispatch(self, request: Request, call_next):
         if request.url.path.startswith("/health") or request.url.path == "/":
             return await call_next(request)
 
         client_ip = self._get_client_ip(request)
-        if self._is_rate_limited(client_ip, request.url.path):
+
+        # Periodic cleanup every 30 seconds
+        now = time.monotonic()
+        if now - self._last_cleanup > 30:
+            self._cleanup_stale()
+            self._last_cleanup = now
+
+        limit, remaining, retry_after = self._check_limit(client_ip, request.url.path)
+
+        if remaining == 0:
             return JSONResponse(
                 status_code=429,
                 content={"detail": "Rate limit exceeded. Try again later."},
+                headers={
+                    "X-RateLimit-Limit": str(limit),
+                    "X-RateLimit-Remaining": "0",
+                    "Retry-After": str(math.ceil(retry_after)),
+                },
             )
-        return await call_next(request)
+
+        response = await call_next(request)
+        response.headers["X-RateLimit-Limit"] = str(limit)
+        response.headers["X-RateLimit-Remaining"] = str(remaining)
+        return response
