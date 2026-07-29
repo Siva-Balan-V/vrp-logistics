@@ -1,5 +1,6 @@
 # Python
 __pycache__/
+.mimocode/
 *.py[cod]
 *$py.class
 *.so
