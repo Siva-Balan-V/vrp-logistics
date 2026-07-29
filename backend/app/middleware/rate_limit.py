@@ -26,7 +26,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return forwarded.split(",")[0].strip()
         return request.client.host if request.client else "unknown"
 
-    def _is_rate_limited(self, client_ip: str, path: str) -> bool:
+    def _is_rate_limited(self, client_ip: str, path: str) -> tuple[bool, int, int]:
         now = time.monotonic()
         cutoff = now - self.window
 
@@ -36,20 +36,36 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         hits = self._hits[key]
         self._hits[key] = [t for t in hits if t > cutoff]
 
+        remaining = max(0, limit - len(self._hits[key]))
+
         if len(self._hits[key]) >= limit:
-            return True
+            return True, limit, remaining
 
         self._hits[key].append(now)
-        return False
+        remaining = max(0, limit - len(self._hits[key]))
+        return False, limit, remaining
+
+    def _cleanup_stale(self):
+        now = time.monotonic()
+        cutoff = now - self.window
+        stale_keys = [k for k, v in self._hits.items() if not v or max(v) < cutoff]
+        for k in stale_keys:
+            del self._hits[k]
 
     async def dispatch(self, request: Request, call_next):
         if request.url.path.startswith("/health") or request.url.path == "/":
-            return await call_next(request)
+            response = await call_next(request)
+            return response
 
         client_ip = self._get_client_ip(request)
-        if self._is_rate_limited(client_ip, request.url.path):
+        is_limited, limit, remaining = self._is_rate_limited(client_ip, request.url.path)
+        if is_limited:
             return JSONResponse(
                 status_code=429,
                 content={"detail": "Rate limit exceeded. Try again later."},
             )
-        return await call_next(request)
+        response = await call_next(request)
+        response.headers["X-RateLimit-Limit"] = str(limit)
+        response.headers["X-RateLimit-Remaining"] = str(remaining)
+        self._cleanup_stale()
+        return response

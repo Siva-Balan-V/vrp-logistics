@@ -106,3 +106,44 @@ def test_list_routes(client):
     data = resp.json()
     assert "count" in data
     assert "jobs" in data
+
+
+def test_export_not_found(client):
+    """Export for non-existent job should return 404."""
+    resp = client.get("/api/v1/routes/nonexistent/export?format=csv")
+    assert resp.status_code == 404
+
+
+def test_optimize_routes_invalid_vehicle_count(client, sample_request):
+    """Vehicle count out of range should return 422."""
+    req = {**sample_request, "vehicles": {"count": 0, "capacity": 50, "max_route_duration_seconds": 9000, "speed_kmh": 30}}
+    resp = client.post("/api/v1/optimize-routes", json=req)
+    assert resp.status_code == 422
+
+
+def test_health_response_structure(client):
+    """Health endpoint should have all expected fields."""
+    resp = client.get("/health")
+    data = resp.json()
+    assert "status" in data
+    assert "version" in data
+    assert "routing_backend" in data
+    assert "redis_connected" in data
+
+
+def test_root_redirects_to_docs(client):
+    """Root endpoint should reference docs."""
+    resp = client.get("/")
+    data = resp.json()
+    assert "docs" in data
+    assert "VRP" in data.get("message", "")
+
+
+def test_rate_limit_headers_present(client):
+    """Response should contain rate limit headers."""
+    resp = client.get("/api/v1/routes")
+    assert resp.status_code == 200
+    assert "X-RateLimit-Limit" in resp.headers
+    assert "X-RateLimit-Remaining" in resp.headers
+
+

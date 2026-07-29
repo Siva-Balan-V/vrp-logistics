@@ -36,9 +36,9 @@ def test_matrix_key_different_coords():
 
 def test_lru_roundtrip():
     """Set and get should roundtrip through LRU cache."""
-    coords = [(51.5074, -0.1278), (48.8566, 2.3522)]
-    dist = np.array([[0.0, 343.0], [343.0, 0.0]])
-    dur = np.array([[0.0, 41160.0], [41160.0, 0.0]])
+    coords = [(40.7128, -74.0060), (34.0522, -118.2437)]  # NYC → LA
+    dist = np.array([[0.0, 3944.0], [3944.0, 0.0]])
+    dur = np.array([[0.0, 473280.0], [473280.0, 0.0]])
     value = (dist, dur, "haversine")
 
     set_matrix(coords, "haversine", value)
@@ -53,14 +53,14 @@ def test_lru_roundtrip():
 
 def test_lru_miss():
     """Cache miss should return None."""
-    coords = [(51.5074, -0.1278), (48.8566, 2.3522)]
+    coords = [(51.5074, -0.1278), (48.8566, 2.3522)]  # different coords than roundtrip
     result = get_matrix(coords, "haversine")
     assert result is None
 
 
 def test_lru_overwrite():
     """Setting same key should overwrite previous value."""
-    coords = [(51.5074, -0.1278), (48.8566, 2.3522)]
+    coords = [(35.6762, 139.6503), (37.7749, -122.4194)]  # Tokyo → SF
     dist1 = np.array([[0.0, 100.0], [100.0, 0.0]])
     dist2 = np.array([[0.0, 200.0], [200.0, 0.0]])
     dur = np.zeros((2, 2))
