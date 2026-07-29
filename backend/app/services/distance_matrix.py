@@ -24,6 +24,43 @@ settings = get_settings()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# RESPONSE VALIDATION HELPERS
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _validate_matrix_response(
+    durations: list[list[float]] | None,
+    distances: list[list[float]] | None,
+    expected_rows: int,
+    expected_cols: int,
+    source: str,
+) -> None:
+    if not isinstance(durations, list) or not isinstance(distances, list):
+        raise ValueError(f"{source} response: durations and distances must be lists")
+    if len(durations) != expected_rows or len(distances) != expected_rows:
+        raise ValueError(
+            f"{source} response: expected {expected_rows} rows, got durations={len(durations)} distances={len(distances)}"
+        )
+    for ri in range(expected_rows):
+        if not isinstance(durations[ri], list) or not isinstance(distances[ri], list):
+            raise ValueError(f"{source} response: row {ri} is not a list")
+        if len(durations[ri]) != expected_cols or len(distances[ri]) != expected_cols:
+            raise ValueError(
+                f"{source} response: row {ri} expected {expected_cols} cols, got durations={len(durations[ri])} distances={len(distances[ri])}"
+            )
+        for cj in range(expected_cols):
+            dur_val = durations[ri][cj]
+            dist_val = distances[ri][cj]
+            if dur_val is not None and not isinstance(dur_val, (int, float)):
+                raise ValueError(f"{source} response: durations[{ri}][{cj}] is {type(dur_val).__name__}, expected number")
+            if dist_val is not None and not isinstance(dist_val, (int, float)):
+                raise ValueError(f"{source} response: distances[{ri}][{cj}] is {type(dist_val).__name__}, expected number")
+            if dur_val is not None and (dur_val < 0 or math.isnan(dur_val) or math.isinf(dur_val)):
+                raise ValueError(f"{source} response: durations[{ri}][{cj}] is invalid ({dur_val})")
+            if dist_val is not None and (dist_val < 0 or math.isnan(dist_val) or math.isinf(dist_val)):
+                raise ValueError(f"{source} response: distances[{ri}][{cj}] is invalid ({dist_val})")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # HAVERSINE HELPER
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -93,6 +130,7 @@ async def _osrm_table_chunk(
     distances = data.get("distances")
     if not durations or not distances:
         raise ValueError("OSRM response missing durations or distances")
+    _validate_matrix_response(durations, distances, len(sources), len(destinations), "OSRM")
     return durations, distances
 
 
@@ -203,6 +241,7 @@ async def build_ors_matrix(
                 distances = data.get("distances")
                 if not durations or not distances:
                     raise ValueError("ORS response missing durations or distances")
+                _validate_matrix_response(durations, distances, s_end - s_start, n, "ORS")
                 for ri, i in enumerate(range(s_start, s_end)):
                     for j in range(n):
                         duration_m[i][j] = durations[ri][j] or 0.0
