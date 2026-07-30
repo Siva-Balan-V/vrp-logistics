@@ -29,7 +29,7 @@ async def register(body: UserRegister, db: AsyncSession = Depends(get_db)):
     try:
         user = await register_user(db, body.email, body.password, body.company_name)
     except ValueError as e:
-        raise HTTPException(409, str(e))
+        raise HTTPException(409, str(e)) from e
 
     access = create_access_token({"sub": str(user.id)})
     refresh = create_refresh_token({"sub": str(user.id)})

@@ -1,21 +1,21 @@
-from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import Any, Literal, Optional
-import uuid
+from typing import Any, Literal
 
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 # ─────────────────────────────────────────────
 # INPUT SCHEMAS
 # ─────────────────────────────────────────────
+
 
 class Location(BaseModel):
     id: int = Field(..., description="Unique location ID")
     lat: float = Field(..., ge=-90, le=90, description="Latitude")
     lon: float = Field(..., ge=-180, le=180, description="Longitude")
     demand: int = Field(default=1, ge=0, description="Package demand at this location")
-    label: Optional[str] = Field(default=None, description="Human-readable name")
+    label: str | None = Field(default=None, description="Human-readable name")
     priority: int = Field(default=1, ge=1, le=5, description="Priority (1=low, 5=high)")
-    time_window_start: Optional[int] = Field(default=None, ge=0, description="Earliest arrival (seconds from route start)")
-    time_window_end: Optional[int] = Field(default=None, ge=0, description="Latest arrival (seconds from route start)")
+    time_window_start: int | None = Field(default=None, ge=0, description="Earliest arrival (seconds from route start)")
+    time_window_end: int | None = Field(default=None, ge=0, description="Latest arrival (seconds from route start)")
 
     @field_validator("lat")
     @classmethod
@@ -38,22 +38,16 @@ class Location(BaseModel):
 class VehicleSpec(BaseModel):
     count: int = Field(default=18, ge=1, le=100, description="Number of vehicles")
     capacity: int = Field(default=50, ge=1, description="Max packages per vehicle")
-    max_route_duration_seconds: int = Field(
-        default=9000, ge=1, description="Max seconds per route (2.5 h = 9000 s)"
-    )
-    speed_kmh: float = Field(
-        default=30.0, gt=0, description="Average vehicle speed (used for time estimation)"
-    )
+    max_route_duration_seconds: int = Field(default=9000, ge=1, description="Max seconds per route (2.5 h = 9000 s)")
+    speed_kmh: float = Field(default=30.0, gt=0, description="Average vehicle speed (used for time estimation)")
 
 
 class OptimizeRequest(BaseModel):
-    job_id: Optional[str] = Field(default=None, description="Optional client job ID")
+    job_id: str | None = Field(default=None, description="Optional client job ID")
     depots: list[Location] = Field(default=[], description="Depot locations (at least one required)")
-    deliveries: list[Location] = Field(
-        ..., min_length=1, max_length=1000, description="Delivery stop locations"
-    )
+    deliveries: list[Location] = Field(..., min_length=1, max_length=1000, description="Delivery stop locations")
     vehicles: VehicleSpec = Field(default_factory=VehicleSpec)
-    routing_backend: Optional[Literal["haversine", "osrm", "ors"]] = Field(
+    routing_backend: Literal["haversine", "osrm", "ors"] | None = Field(
         default=None, description="Override routing backend: osrm | ors | haversine"
     )
 
@@ -83,26 +77,29 @@ class OptimizeRequest(BaseModel):
             raise ValueError(f"Depot IDs {overlap} conflict with delivery IDs")
         return self
 
-    model_config = {"json_schema_extra": {
-        "example": {
-            "depots": [{"id": 0, "lat": 51.5074, "lon": -0.1278, "demand": 0, "label": "London Depot"}],
-            "deliveries": [
-                {"id": 1, "lat": 51.515, "lon": -0.072, "demand": 2, "label": "Stop A"},
-                {"id": 2, "lat": 51.508, "lon": -0.094, "demand": 1, "label": "Stop B"},
-            ],
-            "vehicles": {"count": 18, "capacity": 50, "max_route_duration_seconds": 9000}
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "depots": [{"id": 0, "lat": 51.5074, "lon": -0.1278, "demand": 0, "label": "London Depot"}],
+                "deliveries": [
+                    {"id": 1, "lat": 51.515, "lon": -0.072, "demand": 2, "label": "Stop A"},
+                    {"id": 2, "lat": 51.508, "lon": -0.094, "demand": 1, "label": "Stop B"},
+                ],
+                "vehicles": {"count": 18, "capacity": 50, "max_route_duration_seconds": 9000},
+            }
         }
-    }}
+    }
 
 
 # ─────────────────────────────────────────────
 # OUTPUT SCHEMAS
 # ─────────────────────────────────────────────
 
+
 class VehicleRoute(BaseModel):
     vehicle_id: int
     route: list[int] = Field(..., description="Ordered list of location IDs (starts & ends at depot)")
-    route_labels: list[Optional[str]] = Field(default_factory=list)
+    route_labels: list[str | None] = Field(default_factory=list)
     distance_km: float
     time_minutes: float
     packages_delivered: int
@@ -122,14 +119,14 @@ class OptimizeResponse(BaseModel):
     total_time_minutes: float
     vehicles: list[VehicleRoute]
     unassigned: list[int] = Field(default_factory=list, description="IDs of unserved locations")
-    unassigned_labels: list[Optional[str]] = Field(default_factory=list)
+    unassigned_labels: list[str | None] = Field(default_factory=list)
     matrix_source: str = Field(description="Distance matrix source used")
 
 
 class ErrorResponse(BaseModel):
     status: str = "error"
     message: str
-    detail: Optional[str] = None
+    detail: str | None = None
 
 
 class HealthResponse(BaseModel):
@@ -141,10 +138,11 @@ class HealthResponse(BaseModel):
 
 # ── Auth Schemas ──────────────────────────────
 
+
 class UserRegister(BaseModel):
     email: str = Field(..., min_length=5, max_length=255)
     password: str = Field(..., min_length=8, max_length=128)
-    company_name: Optional[str] = Field(default=None, max_length=200)
+    company_name: str | None = Field(default=None, max_length=200)
 
 
 class UserLogin(BaseModel):
