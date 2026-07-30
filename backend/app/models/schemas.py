@@ -40,6 +40,12 @@ class VehicleSpec(BaseModel):
     capacity: int = Field(default=50, ge=1, description="Max packages per vehicle")
     max_route_duration_seconds: int = Field(default=9000, ge=1, description="Max seconds per route (2.5 h = 9000 s)")
     speed_kmh: float = Field(default=30.0, gt=0, description="Average vehicle speed (used for time estimation)")
+    solver_time_limit_seconds: int | None = Field(
+        default=None, ge=1, le=600, description="Solver timeout in seconds (overrides server default)"
+    )
+    solver_algorithm: Literal["gls", "greedy"] | None = Field(
+        default=None, description="Solver strategy: gls=guided local search, greedy=first solution only"
+    )
 
 
 class OptimizeRequest(BaseModel):

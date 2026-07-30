@@ -59,6 +59,7 @@ class VRPInput:
     location_ids: list[int]  # mapping: internal_index → original_id
     speed_kmh: float = 30.0
     solver_time_limit_seconds: int = 60
+    solver_algorithm: str = "gls"  # "gls" = guided local search, "greedy" = first solution only
     time_windows: list[tuple[int, int]] | None = None  # [(start, end)] per node
     num_depots: int = 1
     priorities: list[int] | None = None  # 1-5 per node, higher = harder to drop
@@ -188,7 +189,8 @@ def solve_vrp(inp: VRPInput) -> SolverOutput:
     # ── Search parameters ─────────────────────────────────────────────────────
     params = pywrapcp.DefaultRoutingSearchParameters()
     params.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
-    params.local_search_metaheuristic = routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
+    if inp.solver_algorithm == "gls":
+        params.local_search_metaheuristic = routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
     params.time_limit.seconds = inp.solver_time_limit_seconds
     params.log_search = False
 
