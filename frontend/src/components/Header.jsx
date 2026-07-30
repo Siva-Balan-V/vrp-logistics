@@ -1,7 +1,9 @@
 import { useAuth } from '../context/AuthContext.jsx'
+import { useTheme } from '../context/ThemeContext.jsx'
 
 export default function Header({ onReset, phase }) {
   const { user, logout } = useAuth()
+  const { theme, toggleTheme } = useTheme()
 
   return (
     <header style={{
@@ -61,6 +63,13 @@ export default function Header({ onReset, phase }) {
             border: '1px solid var(--accent)', borderRadius: 'var(--radius)',
           }}>Sign In</a>
         )}
+        <button onClick={toggleTheme} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} style={{
+          background: 'none', color: 'var(--text-3)',
+          border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+          padding: '5px 10px', fontSize: 14,
+        }}>
+          {theme === 'dark' ? '☀' : '☾'}
+        </button>
         <a href="/docs" target="_blank" rel="noopener noreferrer" style={{
           fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-3)',
           textDecoration: 'none', padding: '5px 10px',

@@ -11,20 +11,23 @@ import LoginPage from './pages/LoginPage.jsx'
 import RegisterPage from './pages/RegisterPage.jsx'
 import { optimizeRoutes } from './api.js'
 import { useAuth } from './context/AuthContext.jsx'
+import { ThemeProvider } from './context/ThemeContext.jsx'
 
 export default function App() {
   return (
-    <ErrorBoundary>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="*" element={
-          <ProtectedRoute>
-            <AppContent />
-          </ProtectedRoute>
-        } />
-      </Routes>
-    </ErrorBoundary>
+    <ThemeProvider>
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="*" element={
+            <ProtectedRoute>
+              <AppContent />
+            </ProtectedRoute>
+          } />
+        </Routes>
+      </ErrorBoundary>
+    </ThemeProvider>
   )
 }
 
@@ -96,6 +99,7 @@ function AppContent() {
               result={result}
               depot={jobData?.depot}
               depots={jobData?.depots}
+              deliveries={jobData?.deliveries}
               selectedVehicle={selectedVehicle}
               onSelectVehicle={setSelectedVehicle}
             />
