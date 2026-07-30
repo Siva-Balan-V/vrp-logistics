@@ -1,5 +1,28 @@
 import { useState, useCallback, useRef } from 'react'
 
+function validatePayload(json) {
+  const errors = []
+  if (!json.deliveries || !Array.isArray(json.deliveries) || json.deliveries.length === 0) {
+    errors.push('"deliveries" must be a non-empty array')
+  } else {
+    json.deliveries.forEach((d, i) => {
+      if (d.id == null) errors.push(`deliveries[${i}]: missing "id"`)
+      if (d.lat == null) errors.push(`deliveries[${i}]: missing "lat"`)
+      if (d.lon == null) errors.push(`deliveries[${i}]: missing "lon"`)
+    })
+  }
+  if (!json.depots && !json.depot) {
+    errors.push('"depots" or "depot" is required')
+  }
+  if (!json.vehicles || typeof json.vehicles !== 'object') {
+    errors.push('"vehicles" must be an object')
+  } else {
+    if (json.vehicles.count == null) errors.push('vehicles: missing "count"')
+    if (json.vehicles.capacity == null) errors.push('vehicles: missing "capacity"')
+  }
+  return errors
+}
+
 function genSample(n, city, enableTimeWindows = false, useTwoDepots = false) {
   const centres = {
     london: [51.5074, -0.1278],
@@ -65,6 +88,8 @@ export default function UploadPanel({ phase, error, onSubmit }) {
   const [routing, setRouting] = useState('haversine')
   const [enableTimeWindows, setEnableTimeWindows] = useState(false)
   const [useTwoDepots, setUseTwoDepots] = useState(false)
+  const [solverTimeLimit, setSolverTimeLimit] = useState(60)
+  const [solverAlgorithm, setSolverAlgorithm] = useState('gls')
   const [pasteText, setPasteText] = useState('')
   const [pasteError, setPasteError] = useState('')
   const [dragOver, setDragOver] = useState(false)
@@ -75,9 +100,11 @@ export default function UploadPanel({ phase, error, onSubmit }) {
     payload.vehicles.count = nVehicles
     payload.vehicles.capacity = capacity
     payload.vehicles.speed_kmh = speed
+    payload.vehicles.solver_time_limit_seconds = solverTimeLimit
+    payload.vehicles.solver_algorithm = solverAlgorithm
     payload.routing_backend = routing
     onSubmit(payload)
-  }, [nLocs, city, nVehicles, capacity, speed, routing, enableTimeWindows, useTwoDepots, onSubmit])
+  }, [nLocs, city, nVehicles, capacity, speed, routing, enableTimeWindows, useTwoDepots, solverTimeLimit, solverAlgorithm, onSubmit])
 
   const handleFileUpload = useCallback(
     (file) => {
@@ -85,6 +112,11 @@ export default function UploadPanel({ phase, error, onSubmit }) {
       reader.onload = (e) => {
         try {
           const json = JSON.parse(e.target.result)
+          const errors = validatePayload(json)
+          if (errors.length) {
+            setPasteError(errors.join('; '))
+            return
+          }
           json.routing_backend = routing
           onSubmit(json)
         } catch {
@@ -99,6 +131,11 @@ export default function UploadPanel({ phase, error, onSubmit }) {
   const handlePasteSubmit = useCallback(() => {
     try {
       const json = JSON.parse(pasteText)
+      const errors = validatePayload(json)
+      if (errors.length) {
+        setPasteError(errors.join('; '))
+        return
+      }
       json.routing_backend = routing
       onSubmit(json)
     } catch {
@@ -366,6 +403,77 @@ export default function UploadPanel({ phase, error, onSubmit }) {
               {label}
             </label>
           ))}
+        </div>
+
+        {/* Solver configuration */}
+        <div
+          style={{
+            background: 'var(--bg-1)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '16px 20px',
+            marginBottom: 20,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              fontFamily: 'var(--mono)',
+              color: 'var(--text-3)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              marginBottom: 12,
+            }}
+          >
+            Solver Configuration
+          </div>
+          <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontSize: 12,
+                color: 'var(--text-2)',
+                fontFamily: 'var(--mono)',
+                cursor: 'pointer',
+              }}
+            >
+              <span>Time limit:</span>
+              <select
+                value={solverTimeLimit}
+                onChange={(e) => setSolverTimeLimit(+e.target.value)}
+                style={{ fontSize: 11, padding: '4px 8px', minWidth: 80 }}
+              >
+                <option value={15}>15 s</option>
+                <option value={30}>30 s</option>
+                <option value={60}>60 s</option>
+                <option value={120}>120 s</option>
+                <option value={300}>300 s</option>
+              </select>
+            </label>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontSize: 12,
+                color: 'var(--text-2)',
+                fontFamily: 'var(--mono)',
+                cursor: 'pointer',
+              }}
+            >
+              <span>Algorithm:</span>
+              <select
+                value={solverAlgorithm}
+                onChange={(e) => setSolverAlgorithm(e.target.value)}
+                style={{ fontSize: 11, padding: '4px 8px', minWidth: 100 }}
+              >
+                <option value="gls">Guided Local Search</option>
+                <option value="greedy">Greedy (fast)</option>
+              </select>
+            </label>
+          </div>
         </div>
 
         {/* Time windows toggle */}
