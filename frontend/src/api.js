@@ -11,8 +11,9 @@ export async function apiFetch(path, { token, ...options } = {}) {
   return res.json()
 }
 
-export async function optimizeRoutes(payload, token) {
-  return apiFetch('/api/v1/optimize-routes', {
+export async function optimizeRoutes(payload, token, runId) {
+  const qs = runId ? `?run_id=${encodeURIComponent(runId)}` : ''
+  return apiFetch(`/api/v1/optimize-routes${qs}`, {
     method: 'POST',
     body: JSON.stringify(payload),
     token,
@@ -30,6 +31,14 @@ export const VEHICLE_COLORS = [
 
 export function vehicleColor(idx) {
   return VEHICLE_COLORS[((idx % VEHICLE_COLORS.length) + VEHICLE_COLORS.length) % VEHICLE_COLORS.length]
+}
+
+export async function getOptimizationStatus(runId, token) {
+  return apiFetch(`/api/v1/optimize-routes/${runId}/status`, { token })
+}
+
+export async function getJobResult(jobId, token) {
+  return apiFetch(`/api/v1/routes/${jobId}`, { token })
 }
 
 export async function exportRoute(jobId, format, token) {

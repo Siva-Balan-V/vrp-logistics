@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react'
-import { Routes, Route } from 'react-router-dom'
+import { useState, useCallback, useRef, useEffect } from 'react'
+import { Routes, Route, useSearchParams } from 'react-router-dom'
 import Header from './components/Header.jsx'
 import UploadPanel from './components/UploadPanel.jsx'
 import MapView from './components/MapView.jsx'
@@ -9,7 +9,7 @@ import ProtectedRoute from './components/ProtectedRoute.jsx'
 import ErrorBoundary from './ErrorBoundary.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import RegisterPage from './pages/RegisterPage.jsx'
-import { optimizeRoutes } from './api.js'
+import { optimizeRoutes, getOptimizationStatus, getJobResult } from './api.js'
 import { useAuth } from './context/AuthContext.jsx'
 import { ThemeProvider } from './context/ThemeContext.jsx'
 
@@ -33,34 +33,82 @@ export default function App() {
 
 function AppContent() {
   const { token } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [phase, setPhase] = useState('idle')
   const [jobData, setJobData] = useState(null)
   const [result, setResult]   = useState(null)
   const [error, setError]     = useState(null)
   const [selectedVehicle, setSelectedVehicle] = useState(null)
+  const [solverProgress, setSolverProgress] = useState({ pct: 0, message: '' })
+  const pollingRef = useRef(null)
+  const loadedRef = useRef(false)
+
+  // Load from URL on mount
+  useEffect(() => {
+    if (loadedRef.current) return
+    const jobId = searchParams.get('job')
+    if (jobId && token) {
+      loadedRef.current = true
+      setPhase('solving')
+      getJobResult(jobId, token)
+        .then((data) => {
+          setResult(data)
+          setPhase('results')
+        })
+        .catch(() => {
+          setPhase('idle')
+        })
+    }
+  }, [searchParams, token])
 
   const handleSubmit = useCallback(async (payload) => {
+    const runId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)
     setPhase('solving')
     setError(null)
     setResult(null)
     setSelectedVehicle(null)
+    setSolverProgress({ pct: 0, message: 'Request queued...' })
+
+    pollingRef.current = setInterval(async () => {
+      try {
+        const st = await getOptimizationStatus(runId, token)
+        if (st.message) setSolverProgress({ pct: st.pct || 0, message: st.message })
+      } catch {
+        // poll gracefully
+      }
+    }, 800)
+
     try {
-      const data = await optimizeRoutes(payload, token)
+      const data = await optimizeRoutes(payload, token, runId)
+      clearInterval(pollingRef.current)
+      pollingRef.current = null
+      setSolverProgress({ pct: 100, message: 'Complete!' })
       setJobData(payload)
       setResult(data)
       setPhase('results')
+      setSearchParams({ job: data.job_id }, { replace: true })
     } catch (err) {
+      clearInterval(pollingRef.current)
+      pollingRef.current = null
       setError(err.message || 'Optimization failed')
       setPhase('error')
     }
-  }, [token])
+  }, [token, setSearchParams])
 
   const handleReset = useCallback(() => {
+    if (pollingRef.current) clearInterval(pollingRef.current)
+    pollingRef.current = null
     setPhase('idle')
     setJobData(null)
     setResult(null)
     setError(null)
     setSelectedVehicle(null)
+    setSolverProgress({ pct: 0, message: '' })
+    setSearchParams({}, { replace: true })
+  }, [setSearchParams])
+
+  useEffect(() => {
+    return () => { if (pollingRef.current) clearInterval(pollingRef.current) }
   }, [])
 
   return (
@@ -106,45 +154,60 @@ function AppContent() {
           </>
         )}
 
-        {phase === 'solving' && <SolvingScreen />}
+        {phase === 'solving' && <SolvingScreen progress={solverProgress} />}
       </main>
     </div>
   )
 }
 
-function SolvingScreen() {
+function SolvingScreen({ progress }) {
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center',
       justifyContent: 'center', gap: 24, padding: 40, gridColumn: '1/-1'
     }}>
-      <div style={{
-        width: 64, height: 64, border: '3px solid var(--border)',
-        borderTopColor: 'var(--accent)', borderRadius: '50%',
-        animation: 'spin 0.8s linear infinite'
-      }} />
-      <div style={{ textAlign: 'center' }}>
-        <h2 style={{ fontFamily: 'var(--display)', marginBottom: 8, fontSize: 24 }}>
-          Solving VRP
-        </h2>
-        <p style={{ color: 'var(--text-2)', fontFamily: 'var(--mono)', fontSize: 13 }}>
-          OR-Tools GUIDED_LOCAL_SEARCH running…
+      <div style={{ width: '100%', maxWidth: 480 }}>
+        <div style={{
+          height: 6, background: 'var(--bg-3)', borderRadius: 3,
+          overflow: 'hidden', marginBottom: 8,
+        }}>
+          <div style={{
+            width: `${progress.pct || 0}%`, height: '100%',
+            background: 'var(--accent)', borderRadius: 3,
+            transition: 'width 0.4s ease',
+          }} />
+        </div>
+        <p style={{
+          textAlign: 'center', fontFamily: 'var(--mono)', fontSize: 11,
+          color: 'var(--text-2)',
+        }}>
+          {progress.message || 'Solving...'}
         </p>
       </div>
       <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12,
+        display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12,
         maxWidth: 480, width: '100%'
       }}>
-        {['Building distance matrix', 'Applying constraints', 'Optimizing routes'].map((s, i) => (
-          <div key={i} style={{
-            background: 'var(--bg-2)', border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)', padding: '10px 14px',
-            fontSize: 11, color: 'var(--text-2)', fontFamily: 'var(--mono)',
-            animation: `fadeUp 0.4s ${i * 0.15}s both`
-          }}>
-            <span style={{ color: 'var(--accent)', marginRight: 6 }}>▶</span>{s}
-          </div>
-        ))}
+        {[
+          ['Building matrix', 10],
+          ['Solving VRP', 30],
+          ['Optimizing', 50],
+          ['Formatting', 90],
+        ].map(([label, threshold], i) => {
+          const active = (progress.pct || 0) >= threshold
+          return (
+            <div key={i} style={{
+              background: active ? 'var(--accent-dim)' : 'var(--bg-2)',
+              border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+              borderRadius: 'var(--radius)', padding: '10px 14px',
+              fontSize: 11, color: active ? 'var(--accent)' : 'var(--text-3)',
+              fontFamily: 'var(--mono)',
+              transition: 'all 0.3s',
+            }}>
+              {active ? '▶' : '○'} {label}
+            </div>
+          )
+        })}
       </div>
     </div>
   )

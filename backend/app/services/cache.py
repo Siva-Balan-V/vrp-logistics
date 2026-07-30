@@ -146,3 +146,19 @@ def set_job(job_id: str, result: dict, ttl_seconds: int = 7200) -> None:
     if _redis_client:
         with suppress(Exception):
             _redis_client.setex(f"job:{job_id}", ttl_seconds, json.dumps(result))
+
+
+# ── Progress tracking (in-flight solver status) ─────────────
+_progress_store: dict[str, dict] = {}
+
+
+def set_progress(run_id: str, stage: str, pct: float, message: str) -> None:
+    _progress_store[run_id] = {"stage": stage, "pct": pct, "message": message}
+
+
+def get_progress(run_id: str) -> dict | None:
+    return _progress_store.get(run_id)
+
+
+def clear_progress(run_id: str) -> None:
+    _progress_store.pop(run_id, None)

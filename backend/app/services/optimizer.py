@@ -23,10 +23,13 @@ logger = structlog.get_logger(__name__)
 settings = get_settings()
 
 
-async def run_optimization(req: OptimizeRequest) -> OptimizeResponse:
+async def run_optimization(req: OptimizeRequest, run_id: str | None = None) -> OptimizeResponse:
     """Async entry point: builds distance matrix, then delegates sync solver."""
     job_id = req.job_id or str(uuid.uuid4())
+    run_id = run_id or job_id
     logger.info("optimization_start", job_id=job_id, n=len(req.deliveries))
+
+    cache.set_progress(run_id, "preparing", 0, "Preparing locations and parameters...")
 
     # ── Build ordered location list (depots first, then deliveries) ───────────
     all_locs: list[Location] = list(req.depots) + list(req.deliveries)
@@ -53,6 +56,7 @@ async def run_optimization(req: OptimizeRequest) -> OptimizeResponse:
     backend = req.routing_backend or settings.ROUTING_BACKEND
 
     # ── Distance matrix (cached) ──────────────────────────────────────────────
+    cache.set_progress(run_id, "matrix", 10, "Building distance matrix...")
     cached = cache.get_matrix(coords, backend)
     if cached:
         dist_km, dur_s, matrix_source = cached
@@ -64,6 +68,7 @@ async def run_optimization(req: OptimizeRequest) -> OptimizeResponse:
         cache.set_matrix(coords, backend, (dist_km, dur_s, matrix_source))
 
     # ── Solver input ──────────────────────────────────────────────────────────
+    cache.set_progress(run_id, "solving", 30, "Solving VRP with OR-Tools...")
     vrp_input = VRPInput(
         num_vehicles=req.vehicles.count,
         vehicle_capacity=req.vehicles.capacity,
@@ -81,19 +86,25 @@ async def run_optimization(req: OptimizeRequest) -> OptimizeResponse:
     )
 
     # ── Solve (CPU-bound, runs in thread executor by caller) ──────────────────
+    cache.set_progress(run_id, "solving", 50, "Optimizing routes (GUIDED_LOCAL_SEARCH)...")
     output = solve_vrp(vrp_input)
 
     # ── Format routes ─────────────────────────────────────────────────────────
-    return _format_response(req, job_id, output, all_locs, location_ids, demands, label_map, matrix_source)
+    cache.set_progress(run_id, "formatting", 90, "Formatting results...")
+    result = _format_response(req, job_id, output, all_locs, location_ids, demands, label_map, matrix_source)
+
+    cache.set_progress(run_id, "done", 100, "Complete!")
+    cache.clear_progress(run_id)
+    return result
 
 
-def run_optimization_sync(req: OptimizeRequest) -> OptimizeResponse:
-    """Synchronous entry point for thread executor — skips matrix building."""
+def run_optimization_sync(req: OptimizeRequest, run_id: str | None = None) -> OptimizeResponse:
+    """Synchronous entry point for thread executor."""
     import asyncio
 
     loop = asyncio.new_event_loop()
     try:
-        return loop.run_until_complete(run_optimization(req))
+        return loop.run_until_complete(run_optimization(req, run_id=run_id))
     finally:
         loop.close()
 

@@ -38,12 +38,17 @@ _DEFAULT_COMPANY_ID = _uuid.UUID("00000000-0000-0000-0000-000000000001")
 )
 async def optimize_routes(
     req: OptimizeRequest,
+    run_id: str | None = Query(default=None, description="Client-generated run ID for progress polling"),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_user),
 ) -> OptimizeResponse:
+    run_id = run_id or str(_uuid.uuid4())
+    cache.set_progress(run_id, "queued", 0, "Request queued...")
     try:
         loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(None, functools.partial(run_optimization_sync, req))
+        result = await loop.run_in_executor(
+            None, functools.partial(run_optimization_sync, req, run_id)
+        )
         company_id = user.company_id if user else _DEFAULT_COMPANY_ID
         # Persist to PostgreSQL if available
         if db is not None and is_db_enabled():
@@ -62,6 +67,20 @@ async def optimize_routes(
             status_code=500,
             detail="Optimization failed. Check server logs for details.",
         ) from exc
+
+
+# ─────────────────────────────────────────────────────────
+# GET /optimize-routes/{run_id}/status
+# ─────────────────────────────────────────────────────────
+@router.get(
+    "/optimize-routes/{run_id}/status",
+    summary="Poll solver progress for a running optimization",
+)
+async def get_optimization_status(run_id: str) -> dict:
+    progress = cache.get_progress(run_id)
+    if progress is None:
+        return {"status": "unknown", "pct": 0, "message": "No progress data found"}
+    return {"status": "running", **progress}
 
 
 # ─────────────────────────────────────────────────────────
