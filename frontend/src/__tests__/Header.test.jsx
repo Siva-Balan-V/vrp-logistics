@@ -2,9 +2,10 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import Header from '../components/Header.jsx'
 import { AuthProvider } from '../context/AuthContext.jsx'
+import { ThemeProvider } from '../context/ThemeContext.jsx'
 
 function renderWithProviders(ui) {
-  return render(<AuthProvider>{ui}</AuthProvider>)
+  return render(<ThemeProvider><AuthProvider>{ui}</AuthProvider></ThemeProvider>)
 }
 
 describe('Header', () => {

@@ -154,6 +154,7 @@ _progress_store: dict[str, dict] = {}
 
 def set_progress(run_id: str, stage: str, pct: float, message: str) -> None:
     _progress_store[run_id] = {"stage": stage, "pct": pct, "message": message}
+    _broadcast_progress(run_id, pct, message)
 
 
 def get_progress(run_id: str) -> dict | None:
@@ -162,3 +163,25 @@ def get_progress(run_id: str) -> dict | None:
 
 def clear_progress(run_id: str) -> None:
     _progress_store.pop(run_id, None)
+
+
+# ── WebSocket broadcast ──────────────────────────
+
+
+def _broadcast_progress(run_id: str, pct: float, message: str) -> None:
+    """Broadcast progress update to WebSocket subscribers (synchronous shim)."""
+    try:
+        from app.websocket_manager import manager
+
+        import anyio
+
+        anyio.from_thread.run(
+            manager.broadcast,
+            run_id,
+            {"type": "progress", "run_id": run_id, "pct": pct, "message": message},
+        )
+    except Exception as exc:
+        # WebSocket broadcasting is best-effort
+        import structlog
+
+        structlog.get_logger(__name__).debug("ws_broadcast_skipped", error=str(exc))
