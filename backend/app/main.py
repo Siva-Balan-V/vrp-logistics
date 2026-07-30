@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import time
 import logging
+import time
 import uuid
 from contextlib import asynccontextmanager
 
@@ -13,8 +13,8 @@ from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.database import init_db
-from app.models.schemas import HealthResponse
 from app.middleware.rate_limit import RateLimitMiddleware
+from app.models.schemas import HealthResponse
 from app.routes.auth import router as auth_router
 from app.routes.companies import router as company_router
 from app.routes.optimization import router as opt_router
@@ -39,6 +39,7 @@ structlog.configure(
 logger = structlog.get_logger(__name__)
 settings = get_settings()
 
+
 # ─────────────────────────────────────────────
 # App factory
 # ─────────────────────────────────────────────
@@ -49,7 +50,9 @@ async def lifespan(app: FastAPI):
     if not settings.JWT_SECRET_KEY:
         logger.warning("jwt_secret_not_set", detail="JWT_SECRET_KEY is empty — set it in .env for production")
     elif settings.JWT_SECRET_KEY == "CHANGE-ME-IN-PRODUCTION":
-        logger.warning("jwt_secret_default", detail="JWT_SECRET_KEY is still the default — change it in .env for production")
+        logger.warning(
+            "jwt_secret_default", detail="JWT_SECRET_KEY is still the default — change it in .env for production"
+        )
     logger.info(
         "app_started",
         name=settings.APP_NAME,

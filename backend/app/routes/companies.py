@@ -32,10 +32,5 @@ async def list_members(
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
-        select(User).where(User.company_id == user.company_id)
-    )
-    return [
-        {"id": str(u.id), "email": u.email, "role": u.role}
-        for u in result.scalars().all()
-    ]
+    result = await db.execute(select(User).where(User.company_id == user.company_id))
+    return [{"id": str(u.id), "email": u.email, "role": u.role} for u in result.scalars().all()]

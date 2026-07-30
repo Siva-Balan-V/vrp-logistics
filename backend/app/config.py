@@ -1,6 +1,6 @@
-from pydantic_settings import BaseSettings
 from functools import lru_cache
-from typing import Optional
+
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
@@ -10,17 +10,17 @@ class Settings(BaseSettings):
     DEBUG: bool = False
 
     # API Keys
-    ORS_API_KEY: str = ""          # OpenRouteService API key
+    ORS_API_KEY: str = ""  # OpenRouteService API key
     OSRM_BASE_URL: str = "http://router.project-osrm.org"
 
     # Routing preference: "osrm" | "ors" | "haversine"
     ROUTING_BACKEND: str = "haversine"
 
     # Redis (optional caching)
-    REDIS_URL: Optional[str] = None
+    REDIS_URL: str | None = None
 
     # Database (optional — app works without it)
-    DATABASE_URL: Optional[str] = None
+    DATABASE_URL: str | None = None
 
     # JWT
     JWT_SECRET_KEY: str = ""
@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
 
     # Batch processing
-    OSRM_BATCH_SIZE: int = 100   # Max locations per OSRM request
+    OSRM_BATCH_SIZE: int = 100  # Max locations per OSRM request
     ORS_BATCH_SIZE: int = 50
 
     class Config:
@@ -46,6 +46,6 @@ class Settings(BaseSettings):
         case_sensitive = True
 
 
-@lru_cache()
+@lru_cache
 def get_settings() -> Settings:
     return Settings()

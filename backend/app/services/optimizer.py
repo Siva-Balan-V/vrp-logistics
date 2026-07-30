@@ -5,9 +5,7 @@ Orchestration service: builds matrix → runs solver → formats response.
 from __future__ import annotations
 
 import uuid
-from typing import Optional
 
-import numpy as np
 import structlog
 
 from app.config import get_settings
@@ -18,7 +16,8 @@ from app.models.schemas import (
     VehicleRoute,
 )
 from app.optimization.vrp_solver import VRPInput, solve_vrp
-from app.services import cache, distance_matrix as dm_service
+from app.services import cache
+from app.services import distance_matrix as dm_service
 
 logger = structlog.get_logger(__name__)
 settings = get_settings()
@@ -35,7 +34,7 @@ async def run_optimization(req: OptimizeRequest) -> OptimizeResponse:
     coords: list[tuple[float, float]] = [(loc.lat, loc.lon) for loc in all_locs]
     location_ids: list[int] = [loc.id for loc in all_locs]
     demands: list[int] = [loc.demand for loc in all_locs]
-    label_map: dict[int, Optional[str]] = {loc.id: loc.label for loc in all_locs}
+    label_map: dict[int, str | None] = {loc.id: loc.label for loc in all_locs}
 
     # Extract time windows (if any location has them)
     has_tw = any(loc.time_window_start is not None for loc in all_locs)
@@ -105,7 +104,7 @@ def _format_response(
     all_locs: list[Location],
     location_ids: list[int],
     demands: list[int],
-    label_map: dict[int, Optional[str]],
+    label_map: dict[int, str | None],
     matrix_source: str,
 ) -> OptimizeResponse:
     loc_by_id = {loc.id: loc for loc in all_locs}

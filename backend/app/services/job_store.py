@@ -5,10 +5,9 @@ PostgreSQL-backed job persistence for optimization results.
 from __future__ import annotations
 
 import uuid
-from typing import Optional
 
 import structlog
-from sqlalchemy import select, desc
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.db import Location, OptimizationJob, VehicleRoute
@@ -61,35 +60,39 @@ async def persist_job(
                 if loc.id in vr.route:
                     vehicle = vr.vehicle_id
                     break
-        db.add(Location(
-            job_id=uuid.UUID(resp.job_id),
-            location_id=loc.id,
-            lat=loc.lat,
-            lon=loc.lon,
-            demand=loc.demand,
-            label=loc.label,
-            is_depot=False,
-            assigned=is_assigned,
-            vehicle_id=vehicle,
-        ))
+        db.add(
+            Location(
+                job_id=uuid.UUID(resp.job_id),
+                location_id=loc.id,
+                lat=loc.lat,
+                lon=loc.lon,
+                demand=loc.demand,
+                label=loc.label,
+                is_depot=False,
+                assigned=is_assigned,
+                vehicle_id=vehicle,
+            )
+        )
 
     # Add depot location
-    db.add(Location(
-        job_id=uuid.UUID(resp.job_id),
-        location_id=req.depot.id,
-        lat=req.depot.lat,
-        lon=req.depot.lon,
-        demand=req.depot.demand,
-        label=req.depot.label,
-        is_depot=True,
-        assigned=True,
-    ))
+    db.add(
+        Location(
+            job_id=uuid.UUID(resp.job_id),
+            location_id=req.depot.id,
+            lat=req.depot.lat,
+            lon=req.depot.lon,
+            demand=req.depot.demand,
+            label=req.depot.label,
+            is_depot=True,
+            assigned=True,
+        )
+    )
 
     await db.flush()
     logger.info("job_persisted", job_id=resp.job_id, company_id=str(company_id))
 
 
-async def get_job_from_db(db: AsyncSession, job_id: str, company_id: uuid.UUID) -> Optional[dict]:
+async def get_job_from_db(db: AsyncSession, job_id: str, company_id: uuid.UUID) -> dict | None:
     """Retrieve job result from PostgreSQL."""
     result = await db.execute(
         select(OptimizationJob).where(
