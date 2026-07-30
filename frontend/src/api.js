@@ -41,6 +41,103 @@ export async function getJobResult(jobId, token) {
   return apiFetch(`/api/v1/routes/${jobId}`, { token })
 }
 
+export async function listJobs(token, limit = 20) {
+  return apiFetch(`/api/v1/routes?limit=${limit}`, { token })
+}
+
+export async function getDashboard(token, days = 30) {
+  return apiFetch(`/api/v1/bi/dashboard?days=${days}`, { token })
+}
+
+export async function getTerritory(token, jobId) {
+  const qs = jobId ? `?job_id=${jobId}` : ''
+  return apiFetch(`/api/v1/bi/territory${qs}`, { token })
+}
+
+export async function listDrivers(token) {
+  return apiFetch('/api/v1/drivers', { token })
+}
+
+export async function createDriver(name, phone, token) {
+  return apiFetch('/api/v1/drivers', {
+    method: 'POST', body: JSON.stringify({ name, phone }), token,
+  })
+}
+
+export async function getDriver(id, token) {
+  return apiFetch(`/api/v1/drivers/${id}`, { token })
+}
+
+export async function updateDriverLocation(id, lat, lon, token) {
+  return apiFetch(`/api/v1/drivers/${id}/location`, {
+    method: 'PATCH', body: JSON.stringify({ lat, lon }), token,
+  })
+}
+
+export async function getDriverEta(id, token) {
+  return apiFetch(`/api/v1/drivers/${id}/eta`, { token })
+}
+
+export async function assignDriverRoute(id, jobId, vehicleId, token) {
+  return apiFetch(`/api/v1/drivers/${id}/assign`, {
+    method: 'POST', body: JSON.stringify({ job_id: jobId, vehicle_id: vehicleId }), token,
+  })
+}
+
+export async function getNotificationConfig(token) {
+  return apiFetch('/api/v1/notifications/config', { token })
+}
+
+export async function updateNotificationConfig(body, token) {
+  return apiFetch('/api/v1/notifications/config', {
+    method: 'PUT', body: JSON.stringify(body), token,
+  })
+}
+
+export async function triggerNotification(body, token) {
+  return apiFetch('/api/v1/notifications/trigger', {
+    method: 'POST', body: JSON.stringify(body), token,
+  })
+}
+
+export async function listPlans(token) {
+  return apiFetch('/api/v1/billing/plans', { token })
+}
+
+export async function getUsage(token) {
+  return apiFetch('/api/v1/billing/usage', { token })
+}
+
+export async function createCheckoutSession(plan, token) {
+  return apiFetch(`/api/v1/billing/create-checkout?plan=${plan}`, {
+    method: 'POST', token,
+  })
+}
+
+export async function createPortalSession(token) {
+  return apiFetch('/api/v1/billing/portal', {
+    method: 'POST', token,
+  })
+}
+
+export async function listAdminCompanies(token) {
+  return apiFetch('/api/v1/admin/companies', { token })
+}
+
+export async function getAdminCompany(id, token) {
+  return apiFetch(`/api/v1/admin/companies/${id}`, { token })
+}
+
+export async function updateCompanyPlan(companyId, plan, token) {
+  return apiFetch(`/api/v1/admin/companies/${companyId}/plan?plan=${plan}`, {
+    method: 'PUT', token,
+  })
+}
+
+export async function listNotificationLogs(limit, token) {
+  return apiFetch(`/api/v1/notifications/logs?limit=${limit}`, { token })
+}
+
 export async function exportRoute(jobId, format, token) {
   const headers = {}
   if (token) headers['Authorization'] = `Bearer ${token}`

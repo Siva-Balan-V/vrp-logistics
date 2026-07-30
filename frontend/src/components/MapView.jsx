@@ -1,8 +1,9 @@
-import { useEffect, useRef, useMemo } from 'react'
+import { useEffect, useRef, useMemo, useState } from 'react'
 import L from 'leaflet'
 import { vehicleColor } from '../api.js'
 
 export default function MapView({ result, depot, depots, deliveries, selectedVehicle, onSelectVehicle }) {
+  const [showDensity, setShowDensity] = useState(false)
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const layersRef = useRef([])
@@ -144,6 +145,31 @@ export default function MapView({ result, depot, depots, deliveries, selectedVeh
       bounds.push([dep.lat, dep.lon])
     })
 
+    // Density heatmap layer
+    if (showDensity && deliveries) {
+      const heatLats = deliveries.map((d) => d.lat)
+      const heatLons = deliveries.map((d) => d.lon)
+      const heatBounds = L.latLngBounds(
+        [Math.min(...heatLats), Math.min(...heatLons)],
+        [Math.max(...heatLats), Math.max(...heatLons)],
+      )
+      const latRange = heatBounds.getNorth() - heatBounds.getSouth()
+      const lonRange = heatBounds.getEast() - heatBounds.getWest()
+      const radius = Math.max(latRange, lonRange) / 20
+
+      deliveries.forEach((d) => {
+        const heatCircle = L.circleMarker([d.lat, d.lon], {
+          radius: Math.max(radius, 8),
+          color: 'var(--accent)',
+          fillColor: '#f5a623',
+          fillOpacity: 0.15,
+          weight: 0.5,
+          opacity: 0.3,
+        }).addTo(map)
+        layersRef.current.push(heatCircle)
+      })
+    }
+
     // Unassigned locations (red X)
     const unassignedCoords = deliveries
       ? result.unassigned
@@ -177,7 +203,7 @@ export default function MapView({ result, depot, depots, deliveries, selectedVeh
         void _
       }
     }
-  }, [result, selectedVehicle, depot, depots, deliveries, onSelectVehicle])
+  }, [result, selectedVehicle, depot, depots, deliveries, onSelectVehicle, showDensity])
 
   return (
     <div style={{ position: 'relative', height: '100%', background: 'var(--bg)' }}>
@@ -237,6 +263,30 @@ export default function MapView({ result, depot, depots, deliveries, selectedVeh
           </div>
         ))}
       </div>
+
+      {/* Density toggle */}
+      {deliveries && (
+        <button
+          onClick={() => setShowDensity((v) => !v)}
+          style={{
+            position: 'absolute',
+            top: 12,
+            right: 20,
+            zIndex: 1000,
+            background: showDensity ? 'var(--accent)' : 'rgba(17,19,24,0.92)',
+            backdropFilter: 'blur(6px)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            padding: '6px 12px',
+            fontSize: 11,
+            fontFamily: 'var(--mono)',
+            color: showDensity ? '#000' : 'var(--text-2)',
+            cursor: 'pointer',
+          }}
+        >
+          {showDensity ? '✕ Hide Density' : '⊙ Show Density'}
+        </button>
+      )}
 
       {/* Instruction hint */}
       <div

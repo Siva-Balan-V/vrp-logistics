@@ -31,6 +31,7 @@ class Company(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(200), nullable=False)
     plan = Column(String(50), nullable=False, default="free")
+    stripe_customer_id = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     users = relationship("User", back_populates="company")
@@ -74,6 +75,25 @@ class OptimizationJob(Base):
     )
 
 
+class Driver(Base):
+    __tablename__ = "drivers"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    company_id = Column(UUID(as_uuid=True), ForeignKey("companies.id"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    name = Column(String(200), nullable=False)
+    phone = Column(String(20), nullable=False)
+    status = Column(String(20), nullable=False, default="offline")
+    current_lat = Column(Float, nullable=True)
+    current_lon = Column(Float, nullable=True)
+    last_ping_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_drivers_company", "company_id"),
+    )
+
+
 class VehicleRoute(Base):
     __tablename__ = "vehicle_routes"
 
@@ -84,6 +104,7 @@ class VehicleRoute(Base):
         nullable=False,
     )
     vehicle_id = Column(Integer, nullable=False)
+    driver_id = Column(UUID(as_uuid=True), ForeignKey("drivers.id"), nullable=True)
     route_json = Column(JSONB, nullable=False)
     distance_km = Column(Float, nullable=False)
     time_minutes = Column(Float, nullable=False)
@@ -115,3 +136,38 @@ class Location(Base):
         Index("idx_locations_job", "job_id"),
         Index("idx_locations_assigned", "job_id", "assigned"),
     )
+
+
+class NotificationConfig(Base):
+    __tablename__ = "notification_config"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    company_id = Column(UUID(as_uuid=True), ForeignKey("companies.id"), nullable=False, unique=True)
+    sms_enabled = Column(Boolean, nullable=False, default=False)
+    email_enabled = Column(Boolean, nullable=False, default=False)
+    twilio_account_sid = Column(String(255))
+    twilio_auth_token = Column(String(255))
+    twilio_from_number = Column(String(20))
+    smtp_host = Column(String(255))
+    smtp_port = Column(Integer, default=587)
+    smtp_user = Column(String(255))
+    smtp_password = Column(String(255))
+    smtp_from_email = Column(String(255))
+    triggers = Column(JSONB, nullable=False, default=list)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class NotificationLog(Base):
+    __tablename__ = "notification_log"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    company_id = Column(UUID(as_uuid=True), ForeignKey("companies.id"), nullable=False)
+    driver_id = Column(UUID(as_uuid=True), ForeignKey("drivers.id"), nullable=True)
+    channel = Column(String(20), nullable=False)
+    recipient = Column(String(255), nullable=False)
+    trigger = Column(String(50), nullable=False)
+    message = Column(String(1000), nullable=False)
+    status = Column(String(20), nullable=False, default="sent")
+    error = Column(String(500))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

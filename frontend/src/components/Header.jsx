@@ -45,6 +45,38 @@ export default function Header({ onReset, phase }) {
             padding: '6px 14px', fontSize: 12, fontWeight: 500
           }}>← New Job</button>
         )}
+        <a href="/dashboard" style={{
+          fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-3)',
+          textDecoration: 'none', padding: '5px 10px',
+          border: '1px solid var(--border)', borderRadius: 'var(--radius)'
+        }}>Dashboard</a>
+        <a href="/history" style={{
+          fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-3)',
+          textDecoration: 'none', padding: '5px 10px',
+          border: '1px solid var(--border)', borderRadius: 'var(--radius)'
+        }}>History</a>
+        <a href="/drivers" style={{
+          fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-3)',
+          textDecoration: 'none', padding: '5px 10px',
+          border: '1px solid var(--border)', borderRadius: 'var(--radius)'
+        }}>Drivers</a>
+        <a href="/notifications" style={{
+          fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-3)',
+          textDecoration: 'none', padding: '5px 10px',
+          border: '1px solid var(--border)', borderRadius: 'var(--radius)'
+        }}>Notifications</a>
+        <a href="/billing" style={{
+          fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-3)',
+          textDecoration: 'none', padding: '5px 10px',
+          border: '1px solid var(--border)', borderRadius: 'var(--radius)'
+        }}>Billing</a>
+        {user?.role === 'admin' && (
+          <a href="/admin" style={{
+            fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--accent)',
+            textDecoration: 'none', padding: '5px 10px',
+            border: '1px solid var(--accent)', borderRadius: 'var(--radius)'
+          }}>Admin</a>
+        )}
         {user ? (
           <>
             <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-2)' }}>

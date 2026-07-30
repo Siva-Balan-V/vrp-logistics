@@ -8,6 +8,9 @@ export default function MetricsBar({ result }) {
     { label: 'Locations Served', value: `${result.assigned_count}/${result.total_locations}`, sub: `${pct}% coverage`, color: 'var(--green)' },
     { label: 'Unassigned', value: result.unassigned_count, sub: 'constraint violations', color: result.unassigned_count > 0 ? 'var(--red)' : 'var(--text-3)' },
     { label: 'Total Distance', value: `${result.total_distance_km.toFixed(1)} km`, sub: 'all routes combined', color: 'var(--blue)' },
+    { label: 'Fuel Cost', value: `$${(result.fuel_cost || 0).toFixed(2)}`, sub: `$${result.total_distance_km.toFixed(1)} km`, color: '#f5a623' },
+    { label: 'Driver Cost', value: `$${(result.driver_cost || 0).toFixed(2)}`, sub: `${(result.total_time_minutes || 0).toFixed(0)} min`, color: '#4b9eff' },
+    { label: 'Total Cost', value: `$${(result.total_cost || 0).toFixed(2)}`, sub: 'fuel + driver', color: 'var(--accent)' },
     { label: 'Solver Time', value: `${result.solver_time_seconds.toFixed(2)} s`, sub: 'OR-Tools GLSS', color: 'var(--text-2)' },
     { label: 'Matrix Source', value: result.matrix_source.toUpperCase(), sub: 'distance backend', color: 'var(--text-2)' },
   ]

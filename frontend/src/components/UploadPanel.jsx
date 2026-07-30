@@ -86,6 +86,7 @@ export default function UploadPanel({ phase, error, onSubmit }) {
   const [capacity, setCapacity] = useState(50)
   const [speed, setSpeed] = useState(30)
   const [routing, setRouting] = useState('haversine')
+  const [traffic, setTraffic] = useState(false)
   const [enableTimeWindows, setEnableTimeWindows] = useState(false)
   const [useTwoDepots, setUseTwoDepots] = useState(false)
   const [solverTimeLimit, setSolverTimeLimit] = useState(60)
@@ -103,8 +104,9 @@ export default function UploadPanel({ phase, error, onSubmit }) {
     payload.vehicles.solver_time_limit_seconds = solverTimeLimit
     payload.vehicles.solver_algorithm = solverAlgorithm
     payload.routing_backend = routing
+    payload.traffic = traffic
     onSubmit(payload)
-  }, [nLocs, city, nVehicles, capacity, speed, routing, enableTimeWindows, useTwoDepots, solverTimeLimit, solverAlgorithm, onSubmit])
+  }, [nLocs, city, nVehicles, capacity, speed, routing, traffic, enableTimeWindows, useTwoDepots, solverTimeLimit, solverAlgorithm, onSubmit])
 
   const handleFileUpload = useCallback(
     (file) => {
@@ -118,6 +120,7 @@ export default function UploadPanel({ phase, error, onSubmit }) {
             return
           }
           json.routing_backend = routing
+          json.traffic = traffic
           onSubmit(json)
         } catch {
           setPasteError('Invalid JSON file')
@@ -125,7 +128,7 @@ export default function UploadPanel({ phase, error, onSubmit }) {
       }
       reader.readAsText(file)
     },
-    [routing, onSubmit],
+    [routing, traffic, onSubmit],
   )
 
   const handlePasteSubmit = useCallback(() => {
@@ -137,11 +140,12 @@ export default function UploadPanel({ phase, error, onSubmit }) {
         return
       }
       json.routing_backend = routing
+      json.traffic = traffic
       onSubmit(json)
     } catch {
       setPasteError('Invalid JSON – check format')
     }
-  }, [pasteText, routing, onSubmit])
+  }, [pasteText, routing, traffic, onSubmit])
 
   const onDrop = useCallback(
     (e) => {
@@ -408,6 +412,33 @@ export default function UploadPanel({ phase, error, onSubmit }) {
             </label>
           ))}
         </div>
+
+        {/* Traffic-aware routing (ORS only) */}
+        {routing === 'ors' && (
+          <div
+            style={{
+              background: 'var(--bg-1)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '10px 20px',
+              marginBottom: 16,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+            }}
+          >
+            <input
+              type="checkbox"
+              id="traffic"
+              checked={traffic}
+              onChange={(e) => setTraffic(e.target.checked)}
+              style={{ accentColor: 'var(--accent)' }}
+            />
+            <label htmlFor="traffic" style={{ fontSize: 13, cursor: 'pointer' }}>
+              Real-time traffic-aware routing
+            </label>
+          </div>
+        )}
 
         {/* Solver configuration */}
         <div

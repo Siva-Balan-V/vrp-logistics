@@ -9,7 +9,15 @@ import ProtectedRoute from './components/ProtectedRoute.jsx'
 import ErrorBoundary from './ErrorBoundary.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import RegisterPage from './pages/RegisterPage.jsx'
-import { optimizeRoutes, getOptimizationStatus, getJobResult } from './api.js'
+import HistoryPage from './pages/HistoryPage.jsx'
+import DashboardPage from './pages/DashboardPage.jsx'
+import DriversPage from './pages/DriversPage.jsx'
+import DriverDetailPage from './pages/DriverDetailPage.jsx'
+import NotificationSettingsPage from './pages/NotificationSettingsPage.jsx'
+import BillingPage from './pages/BillingPage.jsx'
+import AdminPage from './pages/AdminPage.jsx'
+import useWebSocket from './hooks/useWebSocket.js'
+import { optimizeRoutes, getJobResult } from './api.js'
 import { useAuth } from './context/AuthContext.jsx'
 import { ThemeProvider } from './context/ThemeContext.jsx'
 
@@ -20,6 +28,27 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/history" element={
+            <ProtectedRoute><HistoryPage /></ProtectedRoute>
+          } />
+          <Route path="/dashboard" element={
+            <ProtectedRoute><DashboardPage /></ProtectedRoute>
+          } />
+          <Route path="/drivers" element={
+            <ProtectedRoute><DriversPage /></ProtectedRoute>
+          } />
+          <Route path="/drivers/:id" element={
+            <ProtectedRoute><DriverDetailPage /></ProtectedRoute>
+          } />
+          <Route path="/notifications" element={
+            <ProtectedRoute><NotificationSettingsPage /></ProtectedRoute>
+          } />
+          <Route path="/billing" element={
+            <ProtectedRoute><BillingPage /></ProtectedRoute>
+          } />
+          <Route path="/admin" element={
+            <ProtectedRoute><AdminPage /></ProtectedRoute>
+          } />
           <Route path="*" element={
             <ProtectedRoute>
               <AppContent />
@@ -40,8 +69,16 @@ function AppContent() {
   const [error, setError]     = useState(null)
   const [selectedVehicle, setSelectedVehicle] = useState(null)
   const [solverProgress, setSolverProgress] = useState({ pct: 0, message: '' })
-  const pollingRef = useRef(null)
+  const [runId, setRunId] = useState(null)
   const loadedRef = useRef(false)
+
+  // WebSocket progress listener
+  const onWsMessage = useCallback((data) => {
+    if (data.type === 'progress') {
+      setSolverProgress({ pct: data.pct || 0, message: data.message || '' })
+    }
+  }, [])
+  useWebSocket(runId, runId ? token : null, onWsMessage)
 
   // Load from URL on mount
   useEffect(() => {
@@ -62,42 +99,31 @@ function AppContent() {
   }, [searchParams, token])
 
   const handleSubmit = useCallback(async (payload) => {
-    const runId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)
+    const id = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)
+    setRunId(id)
     setPhase('solving')
     setError(null)
     setResult(null)
     setSelectedVehicle(null)
     setSolverProgress({ pct: 0, message: 'Request queued...' })
 
-    pollingRef.current = setInterval(async () => {
-      try {
-        const st = await getOptimizationStatus(runId, token)
-        if (st.message) setSolverProgress({ pct: st.pct || 0, message: st.message })
-      } catch {
-        // poll gracefully
-      }
-    }, 800)
-
     try {
-      const data = await optimizeRoutes(payload, token, runId)
-      clearInterval(pollingRef.current)
-      pollingRef.current = null
+      const data = await optimizeRoutes(payload, token, id)
+      setRunId(null)
       setSolverProgress({ pct: 100, message: 'Complete!' })
       setJobData(payload)
       setResult(data)
       setPhase('results')
       setSearchParams({ job: data.job_id }, { replace: true })
     } catch (err) {
-      clearInterval(pollingRef.current)
-      pollingRef.current = null
+      setRunId(null)
       setError(err.message || 'Optimization failed')
       setPhase('error')
     }
   }, [token, setSearchParams])
 
   const handleReset = useCallback(() => {
-    if (pollingRef.current) clearInterval(pollingRef.current)
-    pollingRef.current = null
+    setRunId(null)
     setPhase('idle')
     setJobData(null)
     setResult(null)
@@ -106,10 +132,6 @@ function AppContent() {
     setSolverProgress({ pct: 0, message: '' })
     setSearchParams({}, { replace: true })
   }, [setSearchParams])
-
-  useEffect(() => {
-    return () => { if (pollingRef.current) clearInterval(pollingRef.current) }
-  }, [])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>

@@ -7,6 +7,7 @@ import uuid as _uuid
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db, is_db_enabled
@@ -16,7 +17,6 @@ from app.models.schemas import OptimizeRequest, OptimizeResponse
 from app.services import cache
 from app.services.optimizer import run_optimization_sync
 from app.services.plans import check_optimization_limit
-from sqlalchemy import func as sa_func
 
 logger = structlog.get_logger(__name__)
 
@@ -67,9 +67,7 @@ async def optimize_routes(
     cache.set_progress(run_id, "queued", 0, "Request queued...")
     try:
         loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            None, functools.partial(run_optimization_sync, req, run_id)
-        )
+        result = await loop.run_in_executor(None, functools.partial(run_optimization_sync, req, run_id))
         company_id = user.company_id if user else _DEFAULT_COMPANY_ID
         # Persist to PostgreSQL if available
         if db is not None and is_db_enabled():

@@ -56,6 +56,7 @@ class OptimizeRequest(BaseModel):
     routing_backend: Literal["haversine", "osrm", "ors"] | None = Field(
         default=None, description="Override routing backend: osrm | ors | haversine"
     )
+    traffic: bool = Field(default=False, description="Use real-time traffic data (ORS only; requires ORS_API_KEY)")
 
     @model_validator(mode="before")
     @classmethod
@@ -127,6 +128,9 @@ class OptimizeResponse(BaseModel):
     unassigned: list[int] = Field(default_factory=list, description="IDs of unserved locations")
     unassigned_labels: list[str | None] = Field(default_factory=list)
     matrix_source: str = Field(description="Distance matrix source used")
+    fuel_cost: float = Field(default=0.0, description="Estimated fuel cost ($)")
+    driver_cost: float = Field(default=0.0, description="Estimated driver cost ($)")
+    total_cost: float = Field(default=0.0, description="Total estimated cost ($)")
 
 
 class ErrorResponse(BaseModel):
@@ -174,3 +178,115 @@ class UserResponse(BaseModel):
     company_name: str
     is_active: bool
     created_at: str
+
+
+# ── Driver Schemas ────────────────────────────
+
+
+class DriverCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    phone: str = Field(..., min_length=5, max_length=20)
+
+
+class DriverLocationUpdate(BaseModel):
+    lat: float = Field(..., ge=-90, le=90)
+    lon: float = Field(..., ge=-180, le=180)
+
+
+class DriverAssignment(BaseModel):
+    job_id: str
+    vehicle_id: int
+
+
+class DriverResponse(BaseModel):
+    id: str
+    name: str
+    phone: str
+    status: str
+    current_lat: float | None = None
+    current_lon: float | None = None
+    last_ping_at: str | None = None
+    created_at: str | None = None
+    assigned_route: dict | None = Field(default=None, description="Today's assigned vehicle route if any")
+
+    model_config = {"from_attributes": True}
+
+
+# ── Notification Schemas ───────────────────────
+
+
+class NotificationConfigUpdate(BaseModel):
+    sms_enabled: bool | None = None
+    email_enabled: bool | None = None
+    twilio_account_sid: str | None = None
+    twilio_auth_token: str | None = None
+    twilio_from_number: str | None = None
+    smtp_host: str | None = None
+    smtp_port: int | None = None
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_from_email: str | None = None
+    triggers: list[str] | None = None
+
+
+class NotificationConfigResponse(BaseModel):
+    id: int
+    sms_enabled: bool
+    email_enabled: bool
+    twilio_account_sid: str | None = None
+    twilio_from_number: str | None = None
+    smtp_host: str | None = None
+    smtp_port: int | None = None
+    smtp_user: str | None = None
+    smtp_from_email: str | None = None
+    triggers: list[str] = []
+    created_at: str | None = None
+    updated_at: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class TriggerNotificationRequest(BaseModel):
+    driver_id: str
+    trigger: str = Field(..., pattern="^(out_for_delivery|arrived|delayed)$")
+    customer_phone: str | None = None
+    customer_email: str | None = None
+
+
+class NotificationLogResponse(BaseModel):
+    id: int
+    channel: str
+    recipient: str
+    trigger: str
+    message: str
+    status: str
+    error: str | None = None
+    created_at: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
+# ── Billing Schemas ────────────────────────────
+
+
+class PlanInfo(BaseModel):
+    id: str
+    name: str
+    price_monthly: int
+    max_optimizations_per_month: int
+    max_locations_per_job: int
+    allowed_backends: list[str]
+    export_enabled: bool
+    priority_support: bool
+    max_users: int
+
+
+class UsageInfo(BaseModel):
+    plan: str
+    monthly_optimizations_used: int
+    monthly_optimizations_limit: int
+    max_locations_per_job: int
+    allowed_backends: list[str]
+    export_enabled: bool
+    max_users: int
+    users_count: int | None = None
