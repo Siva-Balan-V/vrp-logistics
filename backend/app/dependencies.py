@@ -44,3 +44,10 @@ async def require_user(user: User | None = Depends(get_current_user)) -> User:
     if user is None:
         raise HTTPException(status_code=401, detail="Authentication required")
     return user
+
+
+async def require_admin(user: User = Depends(require_user)) -> User:
+    """Require the user to have admin role."""
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user

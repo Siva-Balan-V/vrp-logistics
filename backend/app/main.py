@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import logging.handlers
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -13,31 +14,67 @@ from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.database import init_db
+from app.middleware.metrics import MetricsMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.models.schemas import HealthResponse
 from app.routes.auth import router as auth_router
 from app.routes.companies import router as company_router
+from app.routes.drivers import router as drivers_router
+from app.routes.analytics import router as analytics_router
+from app.routes.admin import router as admin_router
+from app.routes.billing import router as billing_router
+from app.routes.notifications import router as notifications_router
 from app.routes.optimization import router as opt_router
+from app.routes.webhooks import router as webhooks_router
 from app.services import cache
 from app.services.cache import init_cache
+from app.websocket_manager import manager
+
+settings = get_settings()
 
 # ─────────────────────────────────────────────
 # Structured logging setup
 # ─────────────────────────────────────────────
-structlog.configure(
-    processors=[
-        structlog.contextvars.merge_contextvars,
-        structlog.processors.add_log_level,
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.dev.ConsoleRenderer(),
-    ],
-    wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
-    context_class=dict,
-    logger_factory=structlog.PrintLoggerFactory(),
-)
+log_level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
+
+shared_processors = [
+    structlog.contextvars.merge_contextvars,
+    structlog.processors.add_log_level,
+    structlog.processors.TimeStamper(fmt="iso"),
+    structlog.stdlib.add_log_level,
+]
+
+if settings.LOG_FORMAT == "json":
+    renderer = structlog.processors.JSONRenderer()
+else:
+    renderer = structlog.dev.ConsoleRenderer()
+
+if settings.LOG_FILE:
+    handler = logging.handlers.RotatingFileHandler(
+        settings.LOG_FILE, maxBytes=10_485_760, backupCount=5,
+    )
+    handler.setFormatter(
+        structlog.stdlib.ProcessorFormatter(
+            processors=shared_processors + [renderer],
+        ),
+    )
+    logging.basicConfig(handlers=[handler], level=log_level, force=True)
+    structlog.configure(
+        processors=shared_processors + [structlog.stdlib.ProcessorFormatter.wrap_for_formatter],
+        wrapper_class=structlog.make_filtering_bound_logger(log_level),
+        context_class=dict,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
+else:
+    structlog.configure(
+        processors=shared_processors + [renderer],
+        wrapper_class=structlog.make_filtering_bound_logger(log_level),
+        context_class=dict,
+        logger_factory=structlog.PrintLoggerFactory(),
+    )
 
 logger = structlog.get_logger(__name__)
-settings = get_settings()
 
 
 # ─────────────────────────────────────────────
@@ -86,6 +123,9 @@ def create_app() -> FastAPI:
         max_age=3600,
     )
 
+    # ── Metrics (Prometheus) ────────────────────────────────────────────────
+    app.add_middleware(MetricsMiddleware)
+
     # ── Rate limiting ────────────────────────────────────────────────────────
     app.add_middleware(RateLimitMiddleware)
 
@@ -130,10 +170,40 @@ def create_app() -> FastAPI:
     async def root():
         return {"message": "VRP Logistics Optimizer API", "docs": "/docs"}
 
+    # ── WebSocket ─────────────────────────────────────────────────────────────
+    from fastapi import WebSocket, WebSocketDisconnect, Query
+
+    @app.websocket("/api/v1/ws/optimization/{run_id}")
+    async def ws_optimization(
+        ws: WebSocket,
+        run_id: str,
+        token: str = Query(default=""),
+    ):
+        if token:
+            from app.services.auth import decode_token
+            payload = decode_token(token)
+            if not payload:
+                await ws.close(code=4001)
+                return
+        await manager.connect(run_id, ws)
+        try:
+            while True:
+                await ws.receive_text()
+        except WebSocketDisconnect:
+            manager.disconnect(run_id, ws)
+        except Exception:
+            manager.disconnect(run_id, ws)
+
     # ── Routers ───────────────────────────────────────────────────────────────
     app.include_router(auth_router)
     app.include_router(company_router)
+    app.include_router(drivers_router)
     app.include_router(opt_router)
+    app.include_router(admin_router)
+    app.include_router(billing_router)
+    app.include_router(webhooks_router)
+    app.include_router(notifications_router)
+    app.include_router(analytics_router)
 
     return app
 
