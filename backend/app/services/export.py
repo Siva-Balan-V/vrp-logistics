@@ -90,8 +90,7 @@ def generate_gpx(result: OptimizeResponse) -> str:
     )
 
     for vehicle in result.vehicles:
-        # Waypoints (named stops)
-        for wp in vehicle.waypoints:
+        for idx, wp in enumerate(vehicle.waypoints):
             wpt = ET.SubElement(
                 gpx,
                 "wpt",
@@ -100,7 +99,6 @@ def generate_gpx(result: OptimizeResponse) -> str:
                     "lon": str(wp.get("lon", 0)),
                 },
             )
-            idx = vehicle.waypoints.index(wp)
             if idx < len(vehicle.route_labels) and vehicle.route_labels[idx]:
                 ET.SubElement(wpt, "name").text = vehicle.route_labels[idx]
             else:
