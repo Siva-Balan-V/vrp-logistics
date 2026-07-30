@@ -214,6 +214,7 @@ async def build_ors_matrix(
     api_key: str,
     speed_kmh: float = 30.0,
     batch_size: int = 50,
+    traffic: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Build matrices using ORS /v2/matrix/driving-car endpoint.
@@ -238,6 +239,8 @@ async def build_ors_matrix(
                 "metrics": ["duration", "distance"],
                 "units": "km",
             }
+            if traffic:
+                payload["traffic"] = True
             try:
                 resp = await client.post(url, json=payload, headers=headers, timeout=60.0)
                 resp.raise_for_status()
@@ -273,6 +276,7 @@ async def build_matrix(
     coords: list[tuple[float, float]],
     backend: str | None = None,
     speed_kmh: float = 30.0,
+    traffic: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, str]:
     """
     Returns (distance_km_matrix, duration_seconds_matrix, backend_used).
@@ -281,12 +285,14 @@ async def build_matrix(
       1. Explicit `backend` param  →  "osrm" | "ors" | "haversine"
       2. settings.ROUTING_BACKEND
       3. Auto-detect based on available keys
+
+    When `traffic=True`, the ORS backend factors in live traffic data (requires ORS_API_KEY).
     """
     t0 = time.perf_counter()
     effective = backend or settings.ROUTING_BACKEND
 
     if effective == "ors" and settings.ORS_API_KEY:
-        dist, dur = await build_ors_matrix(coords, settings.ORS_API_KEY, speed_kmh)
+        dist, dur = await build_ors_matrix(coords, settings.ORS_API_KEY, speed_kmh, traffic=traffic)
         source = "ors"
     elif effective == "osrm":
         dist, dur = await build_osrm_matrix(coords, speed_kmh)

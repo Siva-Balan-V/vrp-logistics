@@ -65,7 +65,7 @@ def mock_solver(request):
         return
     with patch("app.routes.optimization.run_optimization_sync") as mock:
 
-        def fake_solve(req):
+        def fake_solve(req, run_id=None):
             from app.services import cache
 
             jid = req.job_id or "test-id"

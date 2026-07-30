@@ -11,10 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db, is_db_enabled
 from app.dependencies import get_current_user, require_user
-from app.models.db import User
+from app.models.db import Company, OptimizationJob, User
 from app.models.schemas import OptimizeRequest, OptimizeResponse
 from app.services import cache
 from app.services.optimizer import run_optimization_sync
+from app.services.plans import check_optimization_limit
+from sqlalchemy import func as sa_func
 
 logger = structlog.get_logger(__name__)
 
@@ -42,6 +44,25 @@ async def optimize_routes(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_user),
 ) -> OptimizeResponse:
+    if db is not None and is_db_enabled():
+        company_result = await db.execute(select(Company).where(Company.id == user.company_id))
+        company = company_result.scalar_one_or_none()
+        if company:
+            result_count = await db.execute(
+                select(sa_func.count())
+                .select_from(OptimizationJob)
+                .where(
+                    OptimizationJob.company_id == company.id,
+                    OptimizationJob.created_at >= sa_func.date_trunc("month", sa_func.now()),
+                )
+            )
+            month_count = result_count.scalar() or 0
+            backend = req.routing_backend or "haversine"
+            n_locs = len(req.deliveries) + len(req.depots)
+            error = check_optimization_limit(company.plan, month_count, n_locs, backend)
+            if error:
+                raise HTTPException(status_code=403, detail=error)
+
     run_id = run_id or str(_uuid.uuid4())
     cache.set_progress(run_id, "queued", 0, "Request queued...")
     try:

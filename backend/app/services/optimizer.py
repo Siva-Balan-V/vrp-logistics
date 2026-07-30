@@ -4,11 +4,13 @@ Orchestration service: builds matrix → runs solver → formats response.
 
 from __future__ import annotations
 
+import time
 import uuid
 
 import structlog
 
 from app.config import get_settings
+from app.middleware.metrics import SOLVER_DURATION, SOLVER_RESULT
 from app.models.schemas import (
     Location,
     OptimizeRequest,
@@ -63,7 +65,10 @@ async def run_optimization(req: OptimizeRequest, run_id: str | None = None) -> O
         logger.info("matrix_from_cache", job_id=job_id)
     else:
         dist_km, dur_s, matrix_source = await dm_service.build_matrix(
-            coords, backend=backend, speed_kmh=req.vehicles.speed_kmh
+            coords,
+            backend=backend,
+            speed_kmh=req.vehicles.speed_kmh,
+            traffic=req.traffic,
         )
         cache.set_matrix(coords, backend, (dist_km, dur_s, matrix_source))
 
@@ -87,7 +92,12 @@ async def run_optimization(req: OptimizeRequest, run_id: str | None = None) -> O
 
     # ── Solve (CPU-bound, runs in thread executor by caller) ──────────────────
     cache.set_progress(run_id, "solving", 50, "Optimizing routes (GUIDED_LOCAL_SEARCH)...")
+    _t0 = time.perf_counter()
     output = solve_vrp(vrp_input)
+    SOLVER_DURATION.observe(time.perf_counter() - _t0)
+    SOLVER_RESULT.labels(
+        status="success" if len(output.routes) > 0 else "no_routes",
+    ).inc()
 
     # ── Format routes ─────────────────────────────────────────────────────────
     cache.set_progress(run_id, "formatting", 90, "Formatting results...")
@@ -145,6 +155,10 @@ def _format_response(
         total_dist += rr.distance_km
         total_time += rr.time_seconds / 60
 
+    # Cost estimation
+    fuel_cost = total_dist * settings.FUEL_COST_PER_KM
+    driver_cost = (total_time / 60) * settings.DRIVER_COST_PER_HOUR
+
     depot_ids = {d.id for d in req.depots}
     assigned_ids = {lid for rr in output.routes for lid in rr.location_ids if lid not in depot_ids}
 
@@ -162,6 +176,9 @@ def _format_response(
         unassigned=output.unassigned_ids,
         unassigned_labels=[label_map.get(i) for i in output.unassigned_ids],
         matrix_source=matrix_source,
+        fuel_cost=round(fuel_cost, 2),
+        driver_cost=round(driver_cost, 2),
+        total_cost=round(fuel_cost + driver_cost, 2),
     )
 
     cache.set_job(job_id, response.model_dump())
