@@ -2,7 +2,7 @@ import { useEffect, useRef, useMemo } from 'react'
 import L from 'leaflet'
 import { vehicleColor } from '../api.js'
 
-export default function MapView({ result, depot, depots, selectedVehicle, onSelectVehicle }) {
+export default function MapView({ result, depot, depots, deliveries, selectedVehicle, onSelectVehicle }) {
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const layersRef = useRef([])
@@ -145,7 +145,29 @@ export default function MapView({ result, depot, depots, selectedVehicle, onSele
     })
 
     // Unassigned locations (red X)
-    // (We don't have their coords in the result, so skip for now)
+    const unassignedCoords = deliveries
+      ? result.unassigned
+          .map((id) => deliveries.find((d) => d.id === id))
+          .filter(Boolean)
+      : []
+    unassignedCoords.forEach((loc) => {
+      const xIcon = L.divIcon({
+        html: `<div style="
+          width:20px;height:20px;
+          color:var(--red,#f2614a);
+          font-size:18px;font-weight:700;
+          display:flex;align-items:center;justify-content:center;
+          text-shadow:0 1px 4px rgba(0,0,0,0.6);
+        ">✕</div>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10],
+      })
+      const marker = L.marker([loc.lat, loc.lon], { icon: xIcon })
+        .addTo(map)
+        .bindTooltip(`<strong>Unassigned</strong><br/>#${loc.id}${loc.label ? ` · ${loc.label}` : ''}`, { sticky: true })
+      layersRef.current.push(marker)
+      bounds.push([loc.lat, loc.lon])
+    })
 
     // Fit bounds
     if (bounds.length > 1) {
@@ -155,7 +177,7 @@ export default function MapView({ result, depot, depots, selectedVehicle, onSele
         void _
       }
     }
-  }, [result, selectedVehicle, depot, onSelectVehicle])
+  }, [result, selectedVehicle, depot, depots, deliveries, onSelectVehicle])
 
   return (
     <div style={{ position: 'relative', height: '100%', background: 'var(--bg)' }}>
