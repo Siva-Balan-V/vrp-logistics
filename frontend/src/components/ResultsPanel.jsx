@@ -4,6 +4,15 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 
 export default function ResultsPanel({ result, selectedVehicle, onSelectVehicle }) {
   const [tab, setTab] = useState('routes') // routes | unassigned | chart | json
+  const [copied, setCopied] = useState(false)
+
+  const handleShare = useCallback(() => {
+    const url = new URL(window.location.href)
+    url.searchParams.set('job', result.job_id)
+    navigator.clipboard.writeText(url.toString())
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }, [result.job_id])
 
   const handleExport = useCallback(async (format) => {
     try {
@@ -46,6 +55,13 @@ export default function ResultsPanel({ result, selectedVehicle, onSelectVehicle 
           }}>{label}</button>
         ))}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+          <button onClick={handleShare} style={{
+            padding: '5px 10px', fontSize: 10, fontFamily: 'var(--mono)',
+            background: copied ? 'var(--green-dim)' : 'var(--bg-3)',
+            color: copied ? 'var(--green)' : 'var(--text-2)',
+            border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+            cursor: 'pointer',
+          }}>{copied ? '✓ Copied' : 'Share'}</button>
           <button onClick={() => handleExport('csv')} style={{
             padding: '5px 10px', fontSize: 10, fontFamily: 'var(--mono)',
             background: 'var(--bg-3)', color: 'var(--text-2)',
@@ -139,11 +155,39 @@ function RouteList({ vehicles, selectedVehicle, onSelect }) {
             </div>
             {isSelected && (
               <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
-                <div style={{ fontSize: 10, color: 'var(--text-3)', fontFamily: 'var(--mono)', marginBottom: 4 }}>
-                  ROUTE SEQUENCE:
+                <div style={{ fontSize: 10, color: 'var(--text-3)', fontFamily: 'var(--mono)', marginBottom: 6 }}>
+                  STOPS ({v.waypoints.length - 2} deliveries):
                 </div>
-                <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text-2)', lineHeight: 1.8, wordBreak: 'break-all' }}>
-                  {v.route.join(' → ')}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {v.waypoints.map((wp, wi) => {
+                    const isDepot = wi === 0 || wi === v.waypoints.length - 1
+                    const arrival = v.arrival_times?.[wi]
+                    const mins = arrival != null ? Math.floor(arrival / 60) : null
+                    const secs = arrival != null ? arrival % 60 : null
+                    return (
+                      <div key={wi} style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        padding: '3px 6px', borderRadius: 3,
+                        background: isDepot ? 'var(--bg-3)' : 'transparent',
+                        fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--text-2)',
+                      }}>
+                        <span style={{ color: isDepot ? 'var(--accent)' : 'var(--text-3)', width: 14, flexShrink: 0 }}>
+                          {isDepot ? '⬡' : '•'}
+                        </span>
+                        <span style={{ flex: '0 0 auto', color: 'var(--text-3)', width: 60 }}>
+                          {isDepot ? 'Depot' : `#${wp.id}`}
+                        </span>
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {wp.label || (v.route_labels?.[wi] || '') || (isDepot ? 'Depot' : `Stop ${wp.id}`)}
+                        </span>
+                        {arrival != null && !isDepot && (
+                          <span style={{ color: 'var(--text-3)', flexShrink: 0 }}>
+                            {`${mins}:${String(secs).padStart(2, '0')}`}
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )}
