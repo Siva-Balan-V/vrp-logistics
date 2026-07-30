@@ -17,7 +17,7 @@ export default function MapView({ result, depot, depots, selectedVehicle, onSele
   // Centre the map on the first depot or mean of waypoints
   const centre = useMemo(() => {
     if (depotList.length) return [depotList[0].lat, depotList[0].lon]
-    const pts = result.vehicles.flatMap(v => v.waypoints)
+    const pts = result.vehicles.flatMap((v) => v.waypoints)
     if (!pts.length) return [51.5074, -0.1278]
     const lat = pts.reduce((s, p) => s + p.lat, 0) / pts.length
     const lon = pts.reduce((s, p) => s + p.lon, 0) / pts.length
@@ -57,7 +57,7 @@ export default function MapView({ result, depot, depots, selectedVehicle, onSele
     if (!map) return
 
     // Clear existing layers
-    layersRef.current.forEach(l => map.removeLayer(l))
+    layersRef.current.forEach((l) => map.removeLayer(l))
     layersRef.current = []
 
     const bounds = []
@@ -67,7 +67,7 @@ export default function MapView({ result, depot, depots, selectedVehicle, onSele
       const isSelected = selectedVehicle === vehicle.vehicle_id
       const opacity = selectedVehicle ? (isSelected ? 1 : 0.2) : 0.8
 
-      const points = vehicle.waypoints.map(wp => [wp.lat, wp.lon])
+      const points = vehicle.waypoints.map((wp) => [wp.lat, wp.lon])
       bounds.push(...points)
 
       if (points.length < 2) return
@@ -88,7 +88,13 @@ export default function MapView({ result, depot, depots, selectedVehicle, onSele
         if (wi === 0 || wi === vehicle.waypoints.length - 1) return // skip depot copies
 
         // Priority-based color: P5=red, P4=orange, P3=yellow, P2=blue, P1=gray
-        const priorityColors = { 5: '#f2614a', 4: '#f5a623', 3: '#f5d623', 2: '#4b9eff', 1: '#6b7280' }
+        const priorityColors = {
+          5: '#f2614a',
+          4: '#f5a623',
+          3: '#f5d623',
+          2: '#4b9eff',
+          1: '#6b7280',
+        }
         const pColor = priorityColors[wp.priority] || priorityColors[1]
 
         const circle = L.circleMarker([wp.lat, wp.lon], {
@@ -101,14 +107,15 @@ export default function MapView({ result, depot, depots, selectedVehicle, onSele
         }).addTo(map)
 
         if (isSelected) {
-          circle.bindTooltip(`
+          circle.bindTooltip(
+            `
             <div style="font-family:monospace;font-size:11px">
               <strong>Stop ${wp.id}</strong> <span style="color:${pColor}">P${wp.priority || 1}</span><br/>
               ${wp.lat.toFixed(5)}, ${wp.lon.toFixed(5)}
             </div>
-          `, { sticky: true })
-            </div>
-          `, { sticky: true })
+          `,
+            { sticky: true },
+          )
         }
         layersRef.current.push(circle)
       })
@@ -144,7 +151,9 @@ export default function MapView({ result, depot, depots, selectedVehicle, onSele
     if (bounds.length > 1) {
       try {
         map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 })
-      } catch (_) {}
+      } catch (_) {
+        void _
+      }
     }
   }, [result, selectedVehicle, depot, onSelectVehicle])
 
@@ -153,15 +162,32 @@ export default function MapView({ result, depot, depots, selectedVehicle, onSele
       <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
 
       {/* Legend overlay */}
-      <div style={{
-        position: 'absolute', bottom: 20, right: 20, zIndex: 1000,
-        background: 'rgba(17,19,24,0.92)', backdropFilter: 'blur(6px)',
-        border: '1px solid var(--border)', borderRadius: 'var(--radius)',
-        padding: '10px 14px', maxHeight: 260, overflowY: 'auto',
-        minWidth: 160,
-      }}>
-        <div style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--text-3)',
-          textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 20,
+          right: 20,
+          zIndex: 1000,
+          background: 'rgba(17,19,24,0.92)',
+          backdropFilter: 'blur(6px)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius)',
+          padding: '10px 14px',
+          maxHeight: 260,
+          overflowY: 'auto',
+          minWidth: 160,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 10,
+            fontFamily: 'var(--mono)',
+            color: 'var(--text-3)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            marginBottom: 8,
+          }}
+        >
           Vehicles
         </div>
         {result.vehicles.map((v, i) => (
@@ -169,8 +195,12 @@ export default function MapView({ result, depot, depots, selectedVehicle, onSele
             key={v.vehicle_id}
             onClick={() => onSelectVehicle(selectedVehicle === v.vehicle_id ? null : v.vehicle_id)}
             style={{
-              display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0',
-              cursor: 'pointer', opacity: selectedVehicle && selectedVehicle !== v.vehicle_id ? 0.4 : 1
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '3px 0',
+              cursor: 'pointer',
+              opacity: selectedVehicle && selectedVehicle !== v.vehicle_id ? 0.4 : 1,
             }}
           >
             <div style={{ width: 12, height: 3, background: vehicleColor(i), borderRadius: 2 }} />
@@ -182,13 +212,24 @@ export default function MapView({ result, depot, depots, selectedVehicle, onSele
       </div>
 
       {/* Instruction hint */}
-      <div style={{
-        position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
-        zIndex: 1000, background: 'rgba(17,19,24,0.8)', backdropFilter: 'blur(4px)',
-        border: '1px solid var(--border)', borderRadius: 20,
-        padding: '5px 14px', fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--text-3)',
-        pointerEvents: 'none',
-      }}>
+      <div
+        style={{
+          position: 'absolute',
+          top: 12,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 1000,
+          background: 'rgba(17,19,24,0.8)',
+          backdropFilter: 'blur(4px)',
+          border: '1px solid var(--border)',
+          borderRadius: 20,
+          padding: '5px 14px',
+          fontSize: 10,
+          fontFamily: 'var(--mono)',
+          color: 'var(--text-3)',
+          pointerEvents: 'none',
+        }}
+      >
         Click a route or vehicle to highlight
       </div>
     </div>

@@ -1,10 +1,11 @@
 """Unit tests for every API endpoint."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
+from app.dependencies import require_user
 from app.main import create_app
 from app.models.schemas import OptimizeResponse, VehicleRoute
 
@@ -39,13 +40,18 @@ def _make_fake_response(job_id: str = "test-id") -> OptimizeResponse:
 @pytest.fixture
 def client():
     app = create_app()
+    mock_user = MagicMock()
+    mock_user.company_id = "00000000-0000-0000-0000-000000000001"
+    app.dependency_overrides[require_user] = lambda: mock_user
     with TestClient(app) as c:
         yield c
+    app.dependency_overrides.clear()
 
 
 @pytest.fixture(autouse=True)
 def clear_cache():
     from app.services.cache import _job_cache, _lru
+
     _job_cache.clear()
     _lru.clear()
     yield
@@ -58,12 +64,15 @@ def mock_solver(request):
         yield
         return
     with patch("app.routes.optimization.run_optimization_sync") as mock:
+
         def fake_solve(req):
             from app.services import cache
+
             jid = req.job_id or "test-id"
             resp = _make_fake_response(job_id=jid)
             cache.set_job(jid, resp.model_dump())
             return resp
+
         mock.side_effect = fake_solve
         yield
 
@@ -83,6 +92,7 @@ def sample_request():
 # ─────────────────────────────────────────────
 # GET /health
 # ─────────────────────────────────────────────
+
 
 class TestHealthEndpoint:
     def test_health_returns_200(self, client):
@@ -115,6 +125,7 @@ class TestHealthEndpoint:
 # GET /
 # ─────────────────────────────────────────────
 
+
 class TestRootEndpoint:
     def test_root_returns_200(self, client):
         resp = client.get("/")
@@ -135,6 +146,7 @@ class TestRootEndpoint:
 # ─────────────────────────────────────────────
 # POST /api/v1/optimize-routes
 # ─────────────────────────────────────────────
+
 
 class TestOptimizeRoutes:
     def test_success_returns_200(self, client, sample_request):
@@ -188,12 +200,18 @@ class TestOptimizeRoutes:
         assert resp.status_code == 422
 
     def test_invalid_vehicle_count_returns_422(self, client, sample_request):
-        req = {**sample_request, "vehicles": {"count": 0, "capacity": 50, "max_route_duration_seconds": 9000, "speed_kmh": 30}}
+        req = {
+            **sample_request,
+            "vehicles": {"count": 0, "capacity": 50, "max_route_duration_seconds": 9000, "speed_kmh": 30},
+        }
         resp = client.post("/api/v1/optimize-routes", json=req)
         assert resp.status_code == 422
 
     def test_vehicle_count_above_max_returns_422(self, client, sample_request):
-        req = {**sample_request, "vehicles": {"count": 101, "capacity": 50, "max_route_duration_seconds": 9000, "speed_kmh": 30}}
+        req = {
+            **sample_request,
+            "vehicles": {"count": 101, "capacity": 50, "max_route_duration_seconds": 9000, "speed_kmh": 30},
+        }
         resp = client.post("/api/v1/optimize-routes", json=req)
         assert resp.status_code == 422
 
@@ -277,6 +295,7 @@ class TestOptimizeRoutes:
 # GET /api/v1/routes/{job_id}
 # ─────────────────────────────────────────────
 
+
 class TestGetRoutes:
     def test_get_existing_job_returns_200(self, client, sample_request):
         create_resp = client.post("/api/v1/optimize-routes", json=sample_request)
@@ -323,6 +342,7 @@ class TestGetRoutes:
 # ─────────────────────────────────────────────
 # GET /api/v1/routes
 # ─────────────────────────────────────────────
+
 
 class TestListRoutes:
     def test_list_returns_200(self, client):
@@ -386,6 +406,7 @@ class TestListRoutes:
 # Rate limit headers (applied to all non-meta routes)
 # ─────────────────────────────────────────────
 
+
 class TestRateLimitHeaders:
     def test_rate_limit_headers_present_on_routes(self, client):
         resp = client.get("/api/v1/routes")
@@ -417,6 +438,7 @@ class TestRateLimitHeaders:
 # Global error handling
 # ─────────────────────────────────────────────
 
+
 class TestErrorHandling:
     def test_not_found_returns_json(self, client):
         resp = client.get("/nonexistent")
@@ -432,19 +454,25 @@ class TestErrorHandling:
 
     def test_server_error_returns_500(self, client):
         with patch("app.routes.optimization.run_optimization_sync", side_effect=RuntimeError("boom")):
-            resp = client.post("/api/v1/optimize-routes", json={
-                "depot": {"id": 0, "lat": 0, "lon": 0, "demand": 0},
-                "deliveries": [{"id": 1, "lat": 1, "lon": 1, "demand": 1}],
-                "vehicles": {"count": 1, "capacity": 10, "max_route_duration_seconds": 9000, "speed_kmh": 30},
-            })
+            resp = client.post(
+                "/api/v1/optimize-routes",
+                json={
+                    "depot": {"id": 0, "lat": 0, "lon": 0, "demand": 0},
+                    "deliveries": [{"id": 1, "lat": 1, "lon": 1, "demand": 1}],
+                    "vehicles": {"count": 1, "capacity": 10, "max_route_duration_seconds": 9000, "speed_kmh": 30},
+                },
+            )
         assert resp.status_code == 500
 
     def test_server_error_does_not_leak_details(self, client):
         with patch("app.routes.optimization.run_optimization_sync", side_effect=RuntimeError("boom")):
-            resp = client.post("/api/v1/optimize-routes", json={
-                "depot": {"id": 0, "lat": 0, "lon": 0, "demand": 0},
-                "deliveries": [{"id": 1, "lat": 1, "lon": 1, "demand": 1}],
-                "vehicles": {"count": 1, "capacity": 10, "max_route_duration_seconds": 9000, "speed_kmh": 30},
-            })
+            resp = client.post(
+                "/api/v1/optimize-routes",
+                json={
+                    "depot": {"id": 0, "lat": 0, "lon": 0, "demand": 0},
+                    "deliveries": [{"id": 1, "lat": 1, "lon": 1, "demand": 1}],
+                    "vehicles": {"count": 1, "capacity": 10, "max_route_duration_seconds": 9000, "speed_kmh": 30},
+                },
+            )
         assert "boom" not in resp.text
         assert "Internal server error" not in resp.text
