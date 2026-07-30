@@ -35,7 +35,7 @@ export default function ResultsPanel({ result, selectedVehicle, onSelectVehicle 
       overflow: 'hidden', height: '100%',
     }}>
       {/* Tabs */}
-      <div style={{
+      <div role="tablist" aria-label="Results sections" style={{
         display: 'flex', background: 'var(--bg-2)',
         borderBottom: '1px solid var(--border)', padding: '0 8px',
         flexShrink: 0, alignItems: 'center',
@@ -46,7 +46,7 @@ export default function ResultsPanel({ result, selectedVehicle, onSelectVehicle 
           ['chart', 'Charts'],
           ['json', 'JSON'],
         ].map(([key, label]) => (
-          <button key={key} onClick={() => setTab(key)} style={{
+          <button key={key} role="tab" aria-selected={tab === key} onClick={() => setTab(key)} style={{
             padding: '10px 14px', fontSize: 11, fontFamily: 'var(--mono)',
             background: 'none', borderBottom: tab === key ? '2px solid var(--accent)' : '2px solid transparent',
             color: tab === key ? 'var(--text)' : 'var(--text-3)',
@@ -55,20 +55,20 @@ export default function ResultsPanel({ result, selectedVehicle, onSelectVehicle 
           }}>{label}</button>
         ))}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-          <button onClick={handleShare} style={{
+          <button onClick={handleShare} aria-label="Copy shareable link" style={{
             padding: '5px 10px', fontSize: 10, fontFamily: 'var(--mono)',
             background: copied ? 'var(--green-dim)' : 'var(--bg-3)',
             color: copied ? 'var(--green)' : 'var(--text-2)',
             border: '1px solid var(--border)', borderRadius: 'var(--radius)',
             cursor: 'pointer',
           }}>{copied ? '✓ Copied' : 'Share'}</button>
-          <button onClick={() => handleExport('csv')} style={{
+          <button onClick={() => handleExport('csv')} aria-label="Export as CSV" style={{
             padding: '5px 10px', fontSize: 10, fontFamily: 'var(--mono)',
             background: 'var(--bg-3)', color: 'var(--text-2)',
             border: '1px solid var(--border)', borderRadius: 'var(--radius)',
             cursor: 'pointer',
           }}>CSV</button>
-          <button onClick={() => handleExport('gpx')} style={{
+          <button onClick={() => handleExport('gpx')} aria-label="Export as GPX" style={{
             padding: '5px 10px', fontSize: 10, fontFamily: 'var(--mono)',
             background: 'var(--bg-3)', color: 'var(--text-2)',
             border: '1px solid var(--border)', borderRadius: 'var(--radius)',
@@ -112,7 +112,12 @@ function RouteList({ vehicles, selectedVehicle, onSelect }) {
         return (
           <div
             key={v.vehicle_id}
+            role="button"
+            tabIndex={0}
+            aria-pressed={isSelected}
+            aria-label={`Vehicle ${v.vehicle_id}${isSelected ? ', selected' : ''}`}
             onClick={() => onSelect(isSelected ? null : v.vehicle_id)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelect(isSelected ? null : v.vehicle_id) }}
             style={{
               background: isSelected ? 'var(--bg-3)' : 'var(--bg-2)',
               borderStyle: 'solid',

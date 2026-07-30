@@ -215,7 +215,12 @@ export default function MapView({ result, depot, depots, deliveries, selectedVeh
         {result.vehicles.map((v, i) => (
           <div
             key={v.vehicle_id}
+            role="button"
+            tabIndex={0}
+            aria-pressed={selectedVehicle === v.vehicle_id}
+            aria-label={`Vehicle ${v.vehicle_id}`}
             onClick={() => onSelectVehicle(selectedVehicle === v.vehicle_id ? null : v.vehicle_id)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelectVehicle(selectedVehicle === v.vehicle_id ? null : v.vehicle_id) }}
             style={{
               display: 'flex',
               alignItems: 'center',

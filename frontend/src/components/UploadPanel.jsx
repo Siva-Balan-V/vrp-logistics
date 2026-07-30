@@ -199,6 +199,8 @@ export default function UploadPanel({ phase, error, onSubmit }) {
 
         {/* Mode tabs */}
         <div
+          role="tablist"
+          aria-label="Input mode"
           style={{
             display: 'flex',
             background: 'var(--bg-2)',
@@ -215,6 +217,8 @@ export default function UploadPanel({ phase, error, onSubmit }) {
           ].map(([m, label]) => (
             <button
               key={m}
+              role="tab"
+              aria-selected={mode === m}
               onClick={() => setMode(m)}
               style={{
                 flex: 1,
@@ -570,6 +574,7 @@ export default function UploadPanel({ phase, error, onSubmit }) {
 
         {/* Submit */}
         <button
+          aria-label="Start optimization"
           disabled={disabled}
           onClick={
             mode === 'generate' ? handleGenerate : mode === 'paste' ? handlePasteSubmit : undefined
