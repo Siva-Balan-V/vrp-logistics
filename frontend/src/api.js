@@ -21,16 +21,42 @@ export async function optimizeRoutes(payload, token, runId) {
 }
 
 export const VEHICLE_COLORS = [
-  '#f5a623','#4b9eff','#3ecf8e','#f2614a','#c97ff5',
-  '#54d2f5','#f5d623','#ff6b9d','#7fff6b','#ff9e6b',
-  '#6bceff','#ffce6b','#b46bff','#6bffb4','#ff6b6b',
-  '#6b8fff','#ffb46b','#6bffc4','#ff6bd4','#c4ff6b',
-  '#6baaff','#ffd46b','#6bffaa','#ff6baa','#aaffb4',
-  '#ffaa6b','#6bc4ff','#fff06b','#ff6bf5','#6bffe0',
+  '#f5a623',
+  '#4b9eff',
+  '#3ecf8e',
+  '#f2614a',
+  '#c97ff5',
+  '#54d2f5',
+  '#f5d623',
+  '#ff6b9d',
+  '#7fff6b',
+  '#ff9e6b',
+  '#6bceff',
+  '#ffce6b',
+  '#b46bff',
+  '#6bffb4',
+  '#ff6b6b',
+  '#6b8fff',
+  '#ffb46b',
+  '#6bffc4',
+  '#ff6bd4',
+  '#c4ff6b',
+  '#6baaff',
+  '#ffd46b',
+  '#6bffaa',
+  '#ff6baa',
+  '#aaffb4',
+  '#ffaa6b',
+  '#6bc4ff',
+  '#fff06b',
+  '#ff6bf5',
+  '#6bffe0',
 ]
 
 export function vehicleColor(idx) {
-  return VEHICLE_COLORS[((idx % VEHICLE_COLORS.length) + VEHICLE_COLORS.length) % VEHICLE_COLORS.length]
+  return VEHICLE_COLORS[
+    ((idx % VEHICLE_COLORS.length) + VEHICLE_COLORS.length) % VEHICLE_COLORS.length
+  ]
 }
 
 export async function getOptimizationStatus(runId, token) {
@@ -60,7 +86,9 @@ export async function listDrivers(token) {
 
 export async function createDriver(name, phone, token) {
   return apiFetch('/api/v1/drivers', {
-    method: 'POST', body: JSON.stringify({ name, phone }), token,
+    method: 'POST',
+    body: JSON.stringify({ name, phone }),
+    token,
   })
 }
 
@@ -70,7 +98,9 @@ export async function getDriver(id, token) {
 
 export async function updateDriverLocation(id, lat, lon, token) {
   return apiFetch(`/api/v1/drivers/${id}/location`, {
-    method: 'PATCH', body: JSON.stringify({ lat, lon }), token,
+    method: 'PATCH',
+    body: JSON.stringify({ lat, lon }),
+    token,
   })
 }
 
@@ -80,7 +110,9 @@ export async function getDriverEta(id, token) {
 
 export async function assignDriverRoute(id, jobId, vehicleId, token) {
   return apiFetch(`/api/v1/drivers/${id}/assign`, {
-    method: 'POST', body: JSON.stringify({ job_id: jobId, vehicle_id: vehicleId }), token,
+    method: 'POST',
+    body: JSON.stringify({ job_id: jobId, vehicle_id: vehicleId }),
+    token,
   })
 }
 
@@ -90,13 +122,17 @@ export async function getNotificationConfig(token) {
 
 export async function updateNotificationConfig(body, token) {
   return apiFetch('/api/v1/notifications/config', {
-    method: 'PUT', body: JSON.stringify(body), token,
+    method: 'PUT',
+    body: JSON.stringify(body),
+    token,
   })
 }
 
 export async function triggerNotification(body, token) {
   return apiFetch('/api/v1/notifications/trigger', {
-    method: 'POST', body: JSON.stringify(body), token,
+    method: 'POST',
+    body: JSON.stringify(body),
+    token,
   })
 }
 
@@ -110,13 +146,15 @@ export async function getUsage(token) {
 
 export async function createCheckoutSession(plan, token) {
   return apiFetch(`/api/v1/billing/create-checkout?plan=${plan}`, {
-    method: 'POST', token,
+    method: 'POST',
+    token,
   })
 }
 
 export async function createPortalSession(token) {
   return apiFetch('/api/v1/billing/portal', {
-    method: 'POST', token,
+    method: 'POST',
+    token,
   })
 }
 
@@ -130,12 +168,32 @@ export async function getAdminCompany(id, token) {
 
 export async function updateCompanyPlan(companyId, plan, token) {
   return apiFetch(`/api/v1/admin/companies/${companyId}/plan?plan=${plan}`, {
-    method: 'PUT', token,
+    method: 'PUT',
+    token,
   })
 }
 
 export async function listNotificationLogs(limit, token) {
   return apiFetch(`/api/v1/notifications/logs?limit=${limit}`, { token })
+}
+
+export async function listApiKeys(token) {
+  return apiFetch('/api/v1/api-keys', { token })
+}
+
+export async function createApiKey(body, token) {
+  return apiFetch('/api/v1/api-keys', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    token,
+  })
+}
+
+export async function revokeApiKey(keyId, token) {
+  return apiFetch(`/api/v1/api-keys/${keyId}`, {
+    method: 'DELETE',
+    token,
+  })
 }
 
 export async function exportRoute(jobId, format, token) {
