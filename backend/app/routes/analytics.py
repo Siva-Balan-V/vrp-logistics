@@ -7,12 +7,12 @@ from __future__ import annotations
 import uuid
 
 import structlog
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import require_user
 from app.models.db import Location as LocationModel
 from app.models.db import OptimizationJob, User
 
@@ -24,7 +24,7 @@ router = APIRouter(prefix="/api/v1/bi", tags=["bi"])
 async def dashboard(
     days: int = Query(default=30, ge=1, le=365),
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_user),
 ) -> dict:
     """Aggregated BI metrics for dashboard."""
     company_id = user.company_id
@@ -103,18 +103,22 @@ async def dashboard(
 async def territory(
     job_id: str | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_user),
 ) -> dict:
     """Delivery density clusters for territory analysis."""
     company_id = user.company_id
 
     if job_id:
+        try:
+            job_uuid = uuid.UUID(job_id)
+        except (ValueError, AttributeError, TypeError) as exc:
+            raise HTTPException(status_code=404, detail=f"No result found for job_id={job_id}.") from exc
         result = await db.execute(
             select(LocationModel)
             .join(OptimizationJob, LocationModel.job_id == OptimizationJob.job_id)
             .where(
                 OptimizationJob.company_id == company_id,
-                OptimizationJob.job_id == uuid.UUID(job_id),
+                OptimizationJob.job_id == job_uuid,
                 ~LocationModel.is_depot,
             )
         )

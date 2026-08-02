@@ -94,9 +94,13 @@ async def persist_job(
 
 async def get_job_from_db(db: AsyncSession, job_id: str, company_id: uuid.UUID) -> dict | None:
     """Retrieve job result from PostgreSQL."""
+    try:
+        job_uuid = uuid.UUID(job_id)
+    except (ValueError, AttributeError, TypeError):
+        return None
     result = await db.execute(
         select(OptimizationJob).where(
-            OptimizationJob.job_id == uuid.UUID(job_id),
+            OptimizationJob.job_id == job_uuid,
             OptimizationJob.company_id == company_id,
         )
     )
