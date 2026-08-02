@@ -25,7 +25,7 @@ logger = structlog.get_logger(__name__)
 settings = get_settings()
 
 
-async def run_optimization(req: OptimizeRequest, run_id: str | None = None) -> OptimizeResponse:
+async def run_optimization(req: OptimizeRequest, run_id: str | None = None, company_id=None) -> OptimizeResponse:
     """Async entry point: builds distance matrix, then delegates sync solver."""
     job_id = req.job_id or str(uuid.uuid4())
     run_id = run_id or job_id
@@ -103,18 +103,19 @@ async def run_optimization(req: OptimizeRequest, run_id: str | None = None) -> O
     cache.set_progress(run_id, "formatting", 90, "Formatting results...")
     result = _format_response(req, job_id, output, all_locs, location_ids, demands, label_map, matrix_source)
 
+    cache.set_job(company_id, job_id, result.model_dump())
     cache.set_progress(run_id, "done", 100, "Complete!")
     cache.clear_progress(run_id)
     return result
 
 
-def run_optimization_sync(req: OptimizeRequest, run_id: str | None = None) -> OptimizeResponse:
+def run_optimization_sync(req: OptimizeRequest, run_id: str | None = None, company_id=None) -> OptimizeResponse:
     """Synchronous entry point for thread executor."""
     import asyncio
 
     loop = asyncio.new_event_loop()
     try:
-        return loop.run_until_complete(run_optimization(req, run_id=run_id))
+        return loop.run_until_complete(run_optimization(req, run_id=run_id, company_id=company_id))
     finally:
         loop.close()
 
@@ -181,7 +182,6 @@ def _format_response(
         total_cost=round(fuel_cost + driver_cost, 2),
     )
 
-    cache.set_job(job_id, response.model_dump())
     logger.info(
         "optimization_complete",
         job_id=job_id,

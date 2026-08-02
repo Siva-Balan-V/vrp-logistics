@@ -67,17 +67,17 @@ async def optimize_routes(
 
     run_id = run_id or str(_uuid.uuid4())
     cache.set_progress(run_id, "queued", 0, "Request queued...")
+    company_id = principal.company_id
     try:
         loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(None, functools.partial(run_optimization_sync, req, run_id))
-        company_id = principal.company_id
+        result = await loop.run_in_executor(None, functools.partial(run_optimization_sync, req, run_id, company_id))
         # Persist to PostgreSQL if available
         if db is not None and is_db_enabled():
             from app.services.job_store import persist_job
 
             await persist_job(db, company_id=company_id, req=req, resp=result)
         # Always cache in Redis/LRU
-        cache.set_job(result.job_id, result.model_dump())
+        cache.set_job(company_id, result.job_id, result.model_dump())
         return result
     except ValueError as exc:
         logger.warning("validation_error", error=str(exc))
@@ -126,7 +126,7 @@ async def get_routes(
         result = await get_job_from_db(db, job_id, company_id)
     # Fallback to cache
     if result is None:
-        result = cache.get_job(job_id)
+        result = cache.get_job(company_id, job_id)
     if result is None:
         raise HTTPException(
             status_code=404,
@@ -155,7 +155,7 @@ async def export_routes(
 
         result = await get_job_from_db(db, job_id, company_id)
     if result is None:
-        result = cache.get_job(job_id)
+        result = cache.get_job(company_id, job_id)
     if result is None:
         raise HTTPException(status_code=404, detail=f"No result found for job_id={job_id}.")
 
@@ -197,5 +197,5 @@ async def list_routes(
 
         summaries = await list_jobs_from_db(db, company_id, limit=limit)
     else:
-        summaries = cache.list_jobs(limit=limit)
+        summaries = cache.list_jobs(company_id, limit=limit)
     return {"count": len(summaries), "jobs": summaries}

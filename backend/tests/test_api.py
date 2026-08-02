@@ -5,9 +5,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from app.dependencies import require_principal
+from app.dependencies import get_current_principal, require_principal
 from app.main import create_app
 from app.models.schemas import OptimizeResponse, VehicleRoute
+from app.routes.optimization import _DEFAULT_COMPANY_ID
 
 
 def _make_fake_response(job_id: str = "test-id") -> OptimizeResponse:
@@ -65,12 +66,12 @@ def mock_solver(request):
         return
     with patch("app.routes.optimization.run_optimization_sync") as mock:
 
-        def fake_solve(req, run_id=None):
+        def fake_solve(req, run_id=None, company_id=None):
             from app.services import cache
 
             jid = req.job_id or "test-id"
             resp = _make_fake_response(job_id=jid)
-            cache.set_job(jid, resp.model_dump())
+            cache.set_job(company_id, jid, resp.model_dump())
             return resp
 
         mock.side_effect = fake_solve
@@ -400,6 +401,38 @@ class TestListRoutes:
         resp = client.get("/api/v1/routes")
         assert resp.json()["count"] == 0
         assert resp.json()["jobs"] == []
+
+
+# ─────────────────────────────────────────────
+# Cross-tenant isolation (job results are company-scoped)
+# ─────────────────────────────────────────────
+
+
+class TestCrossTenantIsolation:
+    def test_job_result_not_leaked_across_companies(self, client, sample_request):
+        create_resp = client.post("/api/v1/optimize-routes", json=sample_request)
+        job_id = create_resp.json()["job_id"]
+
+        other_user = MagicMock()
+        other_user.company_id = "00000000-0000-0000-0000-000000000002"
+        client.app.dependency_overrides[get_current_principal] = lambda: other_user
+
+        resp = client.get(f"/api/v1/routes/{job_id}")
+        assert resp.status_code == 404
+
+    def test_job_result_visible_to_own_company(self, client, sample_request):
+        create_resp = client.post("/api/v1/optimize-routes", json=sample_request)
+        job_id = create_resp.json()["job_id"]
+        resp = client.get(f"/api/v1/routes/{job_id}")
+        assert resp.status_code == 200
+
+    async def test_get_job_from_db_rejects_invalid_uuid(self):
+        from app.services.job_store import get_job_from_db
+
+        db = MagicMock()
+        result = await get_job_from_db(db, "not-a-uuid", _DEFAULT_COMPANY_ID)
+        assert result is None
+        db.execute.assert_not_called()
 
 
 # ─────────────────────────────────────────────

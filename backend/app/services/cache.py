@@ -112,20 +112,28 @@ def set_matrix(
             logger.warning("redis_set_error", error=str(exc))
 
 
-# Simple job-result cache (keyed by job_id)
+# Simple job-result cache (keyed by (company_id, job_id))
 _job_cache: LRUCache = LRUCache(maxsize=200)
 
 
-def get_job(job_id: str) -> dict | None:
-    return _job_cache.get(job_id)
+def _job_key(company_id, job_id: str) -> tuple[str, str]:
+    return str(company_id), job_id
 
 
-def list_jobs(limit: int = 10) -> list[dict]:
+def get_job(company_id, job_id: str) -> dict | None:
+    return _job_cache.get(_job_key(company_id, job_id))
+
+
+def list_jobs(company_id, limit: int = 10) -> list[dict]:
     """Return summaries of the most recent jobs from the in-process cache."""
-    jobs = list(_job_cache.keys())[-limit:]
+    jobs = []
+    for jid in _job_cache:
+        if isinstance(jid, tuple) and str(jid[0]) == str(company_id):
+            jobs.append(jid[1])
+    jobs = jobs[-limit:]
     summaries = []
     for jid in jobs:
-        data = _job_cache.get(jid, {})
+        data = _job_cache.get(_job_key(company_id, jid), {})
         summaries.append(
             {
                 "job_id": jid,
@@ -141,11 +149,11 @@ def list_jobs(limit: int = 10) -> list[dict]:
     return summaries
 
 
-def set_job(job_id: str, result: dict, ttl_seconds: int = 7200) -> None:
-    _job_cache[job_id] = result
+def set_job(company_id, job_id: str, result: dict, ttl_seconds: int = 7200) -> None:
+    _job_cache[_job_key(company_id, job_id)] = result
     if _redis_client:
         with suppress(Exception):
-            _redis_client.setex(f"job:{job_id}", ttl_seconds, json.dumps(result))
+            _redis_client.setex(f"job:{company_id}:{job_id}", ttl_seconds, json.dumps(result))
 
 
 # ── Progress tracking (in-flight solver status) ─────────────
