@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -178,6 +179,46 @@ class UserResponse(BaseModel):
     company_name: str
     is_active: bool
     created_at: str
+
+
+# ── API Key Schemas ───────────────────────────
+
+
+API_KEY_PERMISSIONS = ("optimize", "read")
+
+
+class ApiKeyCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100, description="Human-readable key label")
+    permissions: list[str] = Field(
+        default_factory=lambda: ["optimize", "read"],
+        description="Allowed permissions: optimize | read",
+    )
+    expires_at: datetime | None = Field(default=None, description="Optional expiry (ISO 8601)")
+
+    @field_validator("permissions")
+    @classmethod
+    def validate_permissions(cls, v: list[str]) -> list[str]:
+        unknown = set(v) - set(API_KEY_PERMISSIONS)
+        if unknown:
+            raise ValueError(f"Invalid permissions: {sorted(unknown)}. Allowed: {list(API_KEY_PERMISSIONS)}")
+        if not v:
+            raise ValueError("At least one permission is required")
+        return v
+
+
+class ApiKeyResponse(BaseModel):
+    id: str
+    name: str
+    prefix: str
+    permissions: list[str]
+    is_active: bool
+    expires_at: str | None = None
+    last_used_at: str | None = None
+    created_at: str | None = None
+
+
+class ApiKeyCreatedResponse(ApiKeyResponse):
+    key: str = Field(..., description="Plaintext API key — shown once, store it safely")
 
 
 # ── Driver Schemas ────────────────────────────

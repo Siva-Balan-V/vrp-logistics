@@ -19,6 +19,7 @@ from app.middleware.rate_limit import RateLimitMiddleware
 from app.models.schemas import HealthResponse
 from app.routes.admin import router as admin_router
 from app.routes.analytics import router as analytics_router
+from app.routes.api_keys import router as api_keys_router
 from app.routes.auth import router as auth_router
 from app.routes.billing import router as billing_router
 from app.routes.companies import router as company_router
@@ -118,7 +119,7 @@ def create_app() -> FastAPI:
         allow_origins=settings.ALLOWED_ORIGINS,
         allow_credentials=True,
         allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
+        allow_headers=["Content-Type", "Authorization", "X-Request-ID", "X-API-Key"],
         expose_headers=["X-Request-ID", "X-Process-Time-Ms"],
         max_age=3600,
     )
@@ -198,6 +199,7 @@ def create_app() -> FastAPI:
     # ── Routers ───────────────────────────────────────────────────────────────
     app.include_router(auth_router)
     app.include_router(company_router)
+    app.include_router(api_keys_router)
     app.include_router(drivers_router)
     app.include_router(opt_router)
     app.include_router(admin_router)

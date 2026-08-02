@@ -4,16 +4,25 @@ FastAPI dependencies for authentication and authorization.
 
 from __future__ import annotations
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, Header, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db, is_db_enabled
-from app.models.db import User
+from app.models.db import ApiKey, User
+from app.services.api_keys import authenticate_api_key
 from app.services.auth import decode_token
 
 security = HTTPBearer(auto_error=False)
+
+
+class ApiKeyPrincipal:
+    """Authenticated via an API key (B2B integration), scoped to a company."""
+
+    def __init__(self, company_id, api_key: ApiKey):
+        self.company_id = company_id
+        self.api_key = api_key
 
 
 async def get_current_user(
@@ -51,3 +60,46 @@ async def require_admin(user: User = Depends(require_user)) -> User:
     if user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
+
+
+async def get_current_principal(
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    db: AsyncSession = Depends(get_db),
+) -> User | ApiKeyPrincipal | None:
+    """Resolve authentication: prefers an X-API-Key header, falls back to JWT bearer."""
+    if x_api_key:
+        if not is_db_enabled():
+            return None
+        api_key = await authenticate_api_key(db, x_api_key)
+        if api_key is None:
+            raise HTTPException(status_code=401, detail="Invalid or expired API key")
+        return ApiKeyPrincipal(company_id=api_key.company_id, api_key=api_key)
+    return await get_current_user(credentials, db)
+
+
+async def require_principal(
+    principal: User | ApiKeyPrincipal | None = Depends(get_current_principal),
+) -> User | ApiKeyPrincipal:
+    """Require an authenticated principal (JWT user or API key)."""
+    if principal is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    return principal
+
+
+def require_permission(permission: str):
+    """Return a dependency requiring the given API-key permission (JWT users always pass)."""
+
+    async def _checker(
+        principal: User | ApiKeyPrincipal = Depends(require_principal),
+    ) -> User | ApiKeyPrincipal:
+        if isinstance(principal, ApiKeyPrincipal):
+            permissions = principal.api_key.permissions or []
+            if permission not in permissions:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"API key lacks '{permission}' permission",
+                )
+        return principal
+
+    return _checker

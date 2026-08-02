@@ -1,3 +1,23 @@
-from app.models.db import Base, Company, User, OptimizationJob, VehicleRoute, Location, NotificationConfig, NotificationLog
+from app.models.db import (
+    ApiKey,
+    Base,
+    Company,
+    Location,
+    NotificationConfig,
+    NotificationLog,
+    OptimizationJob,
+    User,
+    VehicleRoute,
+)
 
-__all__ = ["Base", "Company", "User", "OptimizationJob", "VehicleRoute", "Location", "NotificationConfig", "NotificationLog"]
+__all__ = [
+    "ApiKey",
+    "Base",
+    "Company",
+    "User",
+    "OptimizationJob",
+    "VehicleRoute",
+    "Location",
+    "NotificationConfig",
+    "NotificationLog",
+]

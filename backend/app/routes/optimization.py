@@ -12,10 +12,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db, is_db_enabled
-from app.dependencies import get_current_user, require_user
+from app.dependencies import ApiKeyPrincipal, get_current_principal, require_permission
 from app.models.db import Company, OptimizationJob, User
 from app.models.schemas import OptimizeRequest, OptimizeResponse
 from app.services import cache
+from app.services.api_keys import PERMISSION_OPTIMIZE
 from app.services.optimizer import run_optimization_sync
 from app.services.plans import check_optimization_limit
 
@@ -43,10 +44,10 @@ async def optimize_routes(
     req: OptimizeRequest,
     run_id: str | None = Query(default=None, description="Client-generated run ID for progress polling"),
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_user),
+    principal: User | ApiKeyPrincipal = Depends(require_permission(PERMISSION_OPTIMIZE)),
 ) -> OptimizeResponse:
     if db is not None and is_db_enabled():
-        company_result = await db.execute(select(Company).where(Company.id == user.company_id))
+        company_result = await db.execute(select(Company).where(Company.id == principal.company_id))
         company = company_result.scalar_one_or_none()
         if company:
             result_count = await db.execute(
@@ -69,7 +70,7 @@ async def optimize_routes(
     try:
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(None, functools.partial(run_optimization_sync, req, run_id))
-        company_id = user.company_id if user else _DEFAULT_COMPANY_ID
+        company_id = principal.company_id
         # Persist to PostgreSQL if available
         if db is not None and is_db_enabled():
             from app.services.job_store import persist_job
@@ -114,9 +115,9 @@ async def get_optimization_status(run_id: str) -> dict:
 async def get_routes(
     job_id: str,
     db: AsyncSession = Depends(get_db),
-    user: User | None = Depends(get_current_user),
+    principal: User | ApiKeyPrincipal | None = Depends(get_current_principal),
 ) -> OptimizeResponse:
-    company_id = user.company_id if user else _DEFAULT_COMPANY_ID
+    company_id = principal.company_id if principal else _DEFAULT_COMPANY_ID
     result = None
     # Try PostgreSQL first
     if db is not None and is_db_enabled():
@@ -145,9 +146,9 @@ async def export_routes(
     job_id: str,
     format: str = Query(default="csv", pattern="^(csv|gpx)$"),
     db: AsyncSession = Depends(get_db),
-    user: User | None = Depends(get_current_user),
+    principal: User | ApiKeyPrincipal | None = Depends(get_current_principal),
 ) -> Response:
-    company_id = user.company_id if user else _DEFAULT_COMPANY_ID
+    company_id = principal.company_id if principal else _DEFAULT_COMPANY_ID
     result = None
     if db is not None and is_db_enabled():
         from app.services.job_store import get_job_from_db
@@ -187,9 +188,9 @@ async def export_routes(
 async def list_routes(
     limit: int = Query(default=10, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
-    user: User | None = Depends(get_current_user),
+    principal: User | ApiKeyPrincipal | None = Depends(get_current_principal),
 ) -> dict:
-    company_id = user.company_id if user else _DEFAULT_COMPANY_ID
+    company_id = principal.company_id if principal else _DEFAULT_COMPANY_ID
     # Try PostgreSQL first
     if db is not None and is_db_enabled():
         from app.services.job_store import list_jobs_from_db

@@ -35,6 +35,7 @@ class Company(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     users = relationship("User", back_populates="company")
+    api_keys = relationship("ApiKey", back_populates="company")
 
 
 class User(Base):
@@ -49,6 +50,25 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     company = relationship("Company", back_populates="users")
+
+
+class ApiKey(Base):
+    __tablename__ = "api_keys"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    company_id = Column(UUID(as_uuid=True), ForeignKey("companies.id"), nullable=False)
+    name = Column(String(100), nullable=False)
+    key_hash = Column(String(64), nullable=False, unique=True, index=True)
+    prefix = Column(String(12), nullable=False)
+    permissions = Column(JSONB, nullable=False, default=list)
+    is_active = Column(Boolean, nullable=False, default=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    company = relationship("Company", back_populates="api_keys")
+
+    __table_args__ = (Index("idx_api_keys_company", "company_id"),)
 
 
 class OptimizationJob(Base):
@@ -89,9 +109,7 @@ class Driver(Base):
     last_ping_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    __table_args__ = (
-        Index("idx_drivers_company", "company_id"),
-    )
+    __table_args__ = (Index("idx_drivers_company", "company_id"),)
 
 
 class VehicleRoute(Base):
