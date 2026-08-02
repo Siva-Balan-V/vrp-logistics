@@ -128,7 +128,7 @@ def create_app() -> FastAPI:
     app.add_middleware(MetricsMiddleware)
 
     # ── Rate limiting ────────────────────────────────────────────────────────
-    app.add_middleware(RateLimitMiddleware)
+    app.add_middleware(RateLimitMiddleware, trust_proxy_headers=settings.TRUST_PROXY_HEADERS)
 
     # ── Request timing middleware ─────────────────────────────────────────────
     @app.middleware("http")

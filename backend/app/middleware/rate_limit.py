@@ -17,18 +17,27 @@ from starlette.responses import JSONResponse
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app, optimize_limit: int = 30, default_limit: int = 120, window_seconds: int = 60):
+    def __init__(
+        self,
+        app,
+        optimize_limit: int = 30,
+        default_limit: int = 120,
+        window_seconds: int = 60,
+        trust_proxy_headers: bool = False,
+    ):
         super().__init__(app)
         self.optimize_limit = optimize_limit
         self.default_limit = default_limit
         self.window = window_seconds
+        self.trust_proxy_headers = trust_proxy_headers
         self._hits: dict[str, list[float]] = defaultdict(list)
         self._last_cleanup: float = time.monotonic()
 
     def _get_client_ip(self, request: Request) -> str:
-        forwarded = request.headers.get("X-Forwarded-For")
-        if forwarded:
-            return forwarded.split(",")[0].strip()
+        if self.trust_proxy_headers:
+            forwarded = request.headers.get("X-Forwarded-For")
+            if forwarded:
+                return forwarded.split(",")[0].strip()
         return request.client.host if request.client else "unknown"
 
     def _cleanup_stale(self) -> None:
@@ -42,7 +51,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         now = time.monotonic()
         cutoff = now - self.window
 
-        limit = self.optimize_limit if path.startswith("/api/v1/optimize-routes") else self.default_limit
+        limit = self.optimize_limit if path == "/api/v1/optimize-routes" else self.default_limit
 
         key = f"{client_ip}:{path}"
         hits = self._hits[key]

@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     # CORS
     ALLOWED_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
 
+    # Rate limiting
+    TRUST_PROXY_HEADERS: bool = False  # Honor X-Forwarded-For only when behind a trusted proxy
+
     # Batch processing
     OSRM_BATCH_SIZE: int = 100  # Max locations per OSRM request
     ORS_BATCH_SIZE: int = 50
