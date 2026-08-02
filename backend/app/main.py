@@ -220,5 +220,4 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=settings.DEBUG,
-        limit_max_body_size=10_485_760,  # 10 MB
     )
