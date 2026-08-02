@@ -1,12 +1,8 @@
 """Tests for cache service."""
 
-import json
-
 import numpy as np
-import pytest
 
-from app.services import cache
-from app.services.cache import get_matrix, set_matrix, _matrix_key
+from app.services.cache import _matrix_key, get_matrix, set_matrix
 
 
 def test_matrix_key_deterministic():

@@ -1,10 +1,10 @@
 """Tests for Priority-Based Scheduling."""
 
+import numpy as np
 import pytest
 
-from app.models.schemas import Location, OptimizeRequest
+from app.models.schemas import Location
 from app.optimization.vrp_solver import VRPInput, solve_vrp
-import numpy as np
 
 
 class TestLocationPriority:
@@ -37,9 +37,11 @@ class TestSolverPriority:
         n = 6  # 1 depot + 5 deliveries
         dist, dur = self._make_matrix(n)
         inp = VRPInput(
-            num_vehicles=2, vehicle_capacity=50,
+            num_vehicles=2,
+            vehicle_capacity=50,
             max_route_duration_seconds=9000,
-            distance_matrix=dist, duration_matrix=dur,
+            distance_matrix=dist,
+            duration_matrix=dur,
             demands=[0, 1, 1, 1, 1, 1],
             location_ids=[0, 1, 2, 3, 4, 5],
             priorities=[1, 5, 3, 2, 4, 1],
@@ -53,9 +55,11 @@ class TestSolverPriority:
         n = 5
         dist, dur = self._make_matrix(n)
         inp = VRPInput(
-            num_vehicles=2, vehicle_capacity=50,
+            num_vehicles=2,
+            vehicle_capacity=50,
             max_route_duration_seconds=9000,
-            distance_matrix=dist, duration_matrix=dur,
+            distance_matrix=dist,
+            duration_matrix=dur,
             demands=[0, 1, 1, 1, 1],
             location_ids=[0, 1, 2, 3, 4],
             priorities=None,

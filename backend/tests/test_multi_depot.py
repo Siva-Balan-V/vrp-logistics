@@ -1,10 +1,10 @@
 """Tests for Multi-Depot Support."""
 
+import numpy as np
 import pytest
 
-from app.models.schemas import Location, OptimizeRequest, VehicleSpec
+from app.models.schemas import Location, OptimizeRequest
 from app.optimization.vrp_solver import VRPInput, solve_vrp
-import numpy as np
 
 
 class TestSchemaMultiDepot:
@@ -63,12 +63,15 @@ class TestSolverMultiDepot:
         n = 5  # 1 depot + 4 deliveries
         dist, dur = self._make_matrix(n)
         inp = VRPInput(
-            num_vehicles=3, vehicle_capacity=50,
+            num_vehicles=3,
+            vehicle_capacity=50,
             max_route_duration_seconds=9000,
-            distance_matrix=dist, duration_matrix=dur,
+            distance_matrix=dist,
+            duration_matrix=dur,
             demands=[0, 1, 2, 1, 3],
             location_ids=[0, 1, 2, 3, 4],
-            num_depots=1, solver_time_limit_seconds=10,
+            num_depots=1,
+            solver_time_limit_seconds=10,
         )
         output = solve_vrp(inp)
         assert output.solver_time_seconds > 0
@@ -77,12 +80,15 @@ class TestSolverMultiDepot:
         n = 6  # 2 depots + 4 deliveries
         dist, dur = self._make_matrix(n)
         inp = VRPInput(
-            num_vehicles=4, vehicle_capacity=50,
+            num_vehicles=4,
+            vehicle_capacity=50,
             max_route_duration_seconds=9000,
-            distance_matrix=dist, duration_matrix=dur,
+            distance_matrix=dist,
+            duration_matrix=dur,
             demands=[0, 0, 1, 2, 1, 3],
             location_ids=[0, 10, 1, 2, 3, 4],
-            num_depots=2, solver_time_limit_seconds=10,
+            num_depots=2,
+            solver_time_limit_seconds=10,
         )
         output = solve_vrp(inp)
         assert output.solver_time_seconds > 0
@@ -92,12 +98,15 @@ class TestSolverMultiDepot:
         n = 5  # 2 depots + 3 deliveries
         dist, dur = self._make_matrix(n)
         inp = VRPInput(
-            num_vehicles=3, vehicle_capacity=50,
+            num_vehicles=3,
+            vehicle_capacity=50,
             max_route_duration_seconds=9000,
-            distance_matrix=dist, duration_matrix=dur,
+            distance_matrix=dist,
+            duration_matrix=dur,
             demands=[0, 0, 1, 2, 1],
             location_ids=[0, 10, 1, 2, 3],
-            num_depots=2, solver_time_limit_seconds=10,
+            num_depots=2,
+            solver_time_limit_seconds=10,
         )
         output = solve_vrp(inp)
         depot_ids = {0, 10}

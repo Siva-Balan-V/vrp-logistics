@@ -47,9 +47,7 @@ def get_plan_limits(plan: str) -> dict[str, Any]:
     return PLANS.get(plan, PLANS["free"])
 
 
-def check_optimization_limit(
-    plan: str, current_month_count: int, n_locations: int, backend: str
-) -> str | None:
+def check_optimization_limit(plan: str, current_month_count: int, n_locations: int, backend: str) -> str | None:
     """Return an error message if the request violates plan limits, else None."""
     limits = get_plan_limits(plan)
 

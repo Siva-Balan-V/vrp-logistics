@@ -1,10 +1,10 @@
 """Tests for Time Windows (VRPTW) feature."""
 
+import numpy as np
 import pytest
 
 from app.models.schemas import Location, OptimizeRequest, VehicleSpec
-from app.optimization.vrp_solver import VRPInput, RouteResult, SolverOutput, solve_vrp
-import numpy as np
+from app.optimization.vrp_solver import VRPInput, solve_vrp
 
 
 def _make_request_with_time_windows():
@@ -53,13 +53,14 @@ class TestLocationSchema:
 
 class TestSolverTimeWindows:
     def _make_solver_input(self, time_windows=None):
-        n = 4  # depot + 3 deliveries
-        dist = np.array([
-            [0, 2.0, 3.0, 4.0],
-            [2.0, 0, 1.5, 2.5],
-            [3.0, 1.5, 0, 1.0],
-            [4.0, 2.5, 1.0, 0],
-        ])
+        dist = np.array(
+            [
+                [0, 2.0, 3.0, 4.0],
+                [2.0, 0, 1.5, 2.5],
+                [3.0, 1.5, 0, 1.0],
+                [4.0, 2.5, 1.0, 0],
+            ]
+        )
         dur = dist * 120  # 2 min per km
         return VRPInput(
             num_vehicles=3,

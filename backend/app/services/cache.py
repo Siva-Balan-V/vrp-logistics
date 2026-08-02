@@ -171,9 +171,9 @@ def clear_progress(run_id: str) -> None:
 def _broadcast_progress(run_id: str, pct: float, message: str) -> None:
     """Broadcast progress update to WebSocket subscribers (synchronous shim)."""
     try:
-        from app.websocket_manager import manager
-
         import anyio
+
+        from app.websocket_manager import manager
 
         anyio.from_thread.run(
             manager.broadcast,

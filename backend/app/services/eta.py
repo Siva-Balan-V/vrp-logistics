@@ -5,7 +5,6 @@ Uses haversine with road factor as fallback; optionally queries OSRM/ORS for poi
 
 from __future__ import annotations
 
-import math
 from typing import Any
 
 import httpx
@@ -77,16 +76,14 @@ async def _point_to_point_minutes(
     return (d / SPEED_KMH) * 60
 
 
-def _find_next_stop(
-    driver_lat: float, driver_lon: float, waypoints: list[dict]
-) -> int:
+def _find_next_stop(driver_lat: float, driver_lon: float, waypoints: list[dict]) -> int:
     """Find the index of the next unvisited waypoint."""
-    VISITED_THRESHOLD_KM = 0.2
+    visited_threshold_km = 0.2
 
     last_visited = -1
     for i, wp in enumerate(waypoints):
         d = haversine_km(driver_lat, driver_lon, wp["lat"], wp["lon"])
-        if d < VISITED_THRESHOLD_KM:
+        if d < visited_threshold_km:
             last_visited = i
 
     next_stop = last_visited + 1
@@ -139,14 +136,16 @@ async def compute_live_eta(
         original_min = (arrival_times[i] / 60) if arrival_times and i < len(arrival_times) else None
         live_eta_min = round(seg_min + (remaining_stops[-1]["live_eta_min"] if remaining_stops else 0), 1)
 
-        remaining_stops.append({
-            "stop_index": i,
-            "id": wp.get("id"),
-            "label": (labels[i] if labels and i < len(labels) else None) or wp.get("label"),
-            "original_eta_min": original_min,
-            "live_eta_min": live_eta_min,
-            "delta_min": round(live_eta_min - original_min, 1) if original_min is not None else None,
-        })
+        remaining_stops.append(
+            {
+                "stop_index": i,
+                "id": wp.get("id"),
+                "label": (labels[i] if labels and i < len(labels) else None) or wp.get("label"),
+                "original_eta_min": original_min,
+                "live_eta_min": live_eta_min,
+                "delta_min": round(live_eta_min - original_min, 1) if original_min is not None else None,
+            }
+        )
 
         prev_lat, prev_lon = wp["lat"], wp["lon"]
 

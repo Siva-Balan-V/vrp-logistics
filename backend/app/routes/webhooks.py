@@ -11,8 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.db import Company
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.stripe_service import construct_webhook_event, map_stripe_price_to_plan
 
 logger = structlog.get_logger(__name__)
@@ -55,7 +53,9 @@ async def stripe_webhook(
                     subscription = session.get("subscription")
                     if subscription:
                         import stripe as _stripe
+
                         from app.config import get_settings
+
                         _stripe.api_key = get_settings().STRIPE_SECRET_KEY
                         try:
                             sub = _stripe.Subscription.retrieve(subscription)
@@ -73,9 +73,7 @@ async def stripe_webhook(
         sub = event["data"]["object"]
         customer_id = sub.get("customer")
         if customer_id:
-            result = await db.execute(
-                select(Company).where(Company.stripe_customer_id == customer_id)
-            )
+            result = await db.execute(select(Company).where(Company.stripe_customer_id == customer_id))
             company = result.scalar_one_or_none()
             if company:
                 items = sub.get("items", {}).get("data", [])
@@ -91,9 +89,7 @@ async def stripe_webhook(
         sub = event["data"]["object"]
         customer_id = sub.get("customer")
         if customer_id:
-            result = await db.execute(
-                select(Company).where(Company.stripe_customer_id == customer_id)
-            )
+            result = await db.execute(select(Company).where(Company.stripe_customer_id == customer_id))
             company = result.scalar_one_or_none()
             if company:
                 company.plan = "free"

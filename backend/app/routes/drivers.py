@@ -5,22 +5,21 @@ Driver management and GPS tracking routes.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
-from app.config import get_settings
-from sqlalchemy import desc, select, update
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.database import get_db
 from app.dependencies import require_user
-from app.models.db import Driver, OptimizationJob, User, VehicleRoute
+from app.models.db import Driver, User, VehicleRoute
 from app.models.schemas import (
     DriverAssignment,
     DriverCreate,
     DriverLocationUpdate,
-    DriverResponse,
 )
 from app.services.eta import compute_live_eta
 from app.services.notifications import send_notification
@@ -46,10 +45,7 @@ def _driver_to_response(d: Driver, route: dict | None = None) -> dict:
 async def _get_assigned_route(db: AsyncSession, driver_id: uuid.UUID) -> dict | None:
     """Fetch the most recent assigned route for a driver."""
     result = await db.execute(
-        select(VehicleRoute)
-        .where(VehicleRoute.driver_id == driver_id)
-        .order_by(desc(VehicleRoute.created_at))
-        .limit(1)
+        select(VehicleRoute).where(VehicleRoute.driver_id == driver_id).order_by(desc(VehicleRoute.created_at)).limit(1)
     )
     vr = result.scalar_one_or_none()
     if not vr:
@@ -103,9 +99,7 @@ async def get_driver(
     user: User = Depends(require_user),
 ) -> dict:
     """Get driver detail including today's assigned route."""
-    result = await db.execute(
-        select(Driver).where(Driver.id == driver_id, Driver.company_id == user.company_id)
-    )
+    result = await db.execute(select(Driver).where(Driver.id == driver_id, Driver.company_id == user.company_id))
     driver = result.scalar_one_or_none()
     if not driver:
         raise HTTPException(404, "Driver not found")
@@ -121,14 +115,12 @@ async def update_driver_location(
     user: User = Depends(require_user),
 ) -> dict:
     """GPS ping — update driver position and status."""
-    result = await db.execute(
-        select(Driver).where(Driver.id == driver_id, Driver.company_id == user.company_id)
-    )
+    result = await db.execute(select(Driver).where(Driver.id == driver_id, Driver.company_id == user.company_id))
     driver = result.scalar_one_or_none()
     if not driver:
         raise HTTPException(404, "Driver not found")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     driver.current_lat = body.lat
     driver.current_lon = body.lon
     driver.last_ping_at = now
@@ -150,9 +142,7 @@ async def assign_driver_route(
     user: User = Depends(require_user),
 ) -> dict:
     """Assign a driver to a vehicle route from a completed job."""
-    result = await db.execute(
-        select(Driver).where(Driver.id == driver_id, Driver.company_id == user.company_id)
-    )
+    result = await db.execute(select(Driver).where(Driver.id == driver_id, Driver.company_id == user.company_id))
     driver = result.scalar_one_or_none()
     if not driver:
         raise HTTPException(404, "Driver not found")
@@ -188,9 +178,7 @@ async def get_driver_eta(
     user: User = Depends(require_user),
 ) -> dict:
     """Get live ETA estimates for a driver's remaining stops."""
-    result = await db.execute(
-        select(Driver).where(Driver.id == driver_id, Driver.company_id == user.company_id)
-    )
+    result = await db.execute(select(Driver).where(Driver.id == driver_id, Driver.company_id == user.company_id))
     driver = result.scalar_one_or_none()
     if not driver:
         raise HTTPException(404, "Driver not found")

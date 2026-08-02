@@ -6,7 +6,8 @@ from __future__ import annotations
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func as sa_func, select
+from sqlalchemy import func as sa_func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -26,21 +27,21 @@ async def list_companies(
     companies = result.scalars().all()
     out = []
     for c in companies:
-        user_count = await db.execute(
-            select(sa_func.count()).select_from(User).where(User.company_id == c.id)
-        )
+        user_count = await db.execute(select(sa_func.count()).select_from(User).where(User.company_id == c.id))
         job_count = await db.execute(
             select(sa_func.count()).select_from(OptimizationJob).where(OptimizationJob.company_id == c.id)
         )
-        out.append({
-            "id": str(c.id),
-            "name": c.name,
-            "plan": c.plan,
-            "stripe_customer_id": c.stripe_customer_id,
-            "users": user_count.scalar() or 0,
-            "optimizations": job_count.scalar() or 0,
-            "created_at": c.created_at.isoformat() if c.created_at else None,
-        })
+        out.append(
+            {
+                "id": str(c.id),
+                "name": c.name,
+                "plan": c.plan,
+                "stripe_customer_id": c.stripe_customer_id,
+                "users": user_count.scalar() or 0,
+                "optimizations": job_count.scalar() or 0,
+                "created_at": c.created_at.isoformat() if c.created_at else None,
+            }
+        )
     return out
 
 
@@ -55,9 +56,7 @@ async def get_company_detail(
     if not company:
         raise HTTPException(404, "Company not found")
 
-    users_result = await db.execute(
-        select(User).where(User.company_id == company.id).order_by(User.created_at.desc())
-    )
+    users_result = await db.execute(select(User).where(User.company_id == company.id).order_by(User.created_at.desc()))
     users = [
         {
             "id": str(u.id),

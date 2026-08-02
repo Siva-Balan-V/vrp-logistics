@@ -13,7 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.db import Location as LocationModel, OptimizationJob, User
+from app.models.db import Location as LocationModel
+from app.models.db import OptimizationJob, User
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/api/v1/bi", tags=["bi"])
@@ -53,7 +54,6 @@ async def dashboard(
         }
 
     success_count = sum(1 for j in jobs if j.status == "success")
-    total_locs = sum(j.n_locations or 0 for j in jobs)
     total_assigned = sum(j.assigned_count or 0 for j in jobs)
     distances = [j.total_distance_km for j in jobs if j.total_distance_km is not None]
     solver_times = [j.solver_time_s for j in jobs if j.solver_time_s is not None]
@@ -61,7 +61,6 @@ async def dashboard(
 
     # daily trend
     from collections import defaultdict
-    from datetime import date
 
     daily: dict[str, dict] = defaultdict(lambda: {"jobs": 0, "distance": 0.0, "locs": 0})
     for j in jobs:
@@ -116,7 +115,7 @@ async def territory(
             .where(
                 OptimizationJob.company_id == company_id,
                 OptimizationJob.job_id == uuid.UUID(job_id),
-                LocationModel.is_depot == False,
+                ~LocationModel.is_depot,
             )
         )
     else:
@@ -125,7 +124,7 @@ async def territory(
             .join(OptimizationJob, LocationModel.job_id == OptimizationJob.job_id)
             .where(
                 OptimizationJob.company_id == company_id,
-                LocationModel.is_depot == False,
+                ~LocationModel.is_depot,
             )
             .order_by(desc(OptimizationJob.created_at))
             .limit(500)

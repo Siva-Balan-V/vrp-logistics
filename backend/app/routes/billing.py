@@ -13,7 +13,6 @@ from app.config import get_settings
 from app.database import get_db
 from app.dependencies import require_user
 from app.models.db import Company, OptimizationJob, User
-from app.models.schemas import PlanInfo
 from app.services.plans import PLANS, get_plan_limits
 from app.services.stripe_service import (
     create_checkout_session,
@@ -105,9 +104,7 @@ async def create_checkout(
     if not company:
         raise HTTPException(404, "Company not found")
 
-    customer_id = await get_or_create_customer(
-        str(company.id), company.name, user.email
-    )
+    customer_id = await get_or_create_customer(str(company.id), company.name, user.email)
     if customer_id:
         company.stripe_customer_id = customer_id
         await db.flush()

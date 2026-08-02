@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,9 +27,7 @@ async def get_notification_config(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_user),
 ):
-    result = await db.execute(
-        select(NotificationConfig).where(NotificationConfig.company_id == user.company_id)
-    )
+    result = await db.execute(select(NotificationConfig).where(NotificationConfig.company_id == user.company_id))
     cfg = result.scalar_one_or_none()
     return cfg
 
@@ -40,9 +38,7 @@ async def upsert_notification_config(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_user),
 ):
-    result = await db.execute(
-        select(NotificationConfig).where(NotificationConfig.company_id == user.company_id)
-    )
+    result = await db.execute(select(NotificationConfig).where(NotificationConfig.company_id == user.company_id))
     cfg = result.scalar_one_or_none()
     if not cfg:
         cfg = NotificationConfig(company_id=user.company_id)

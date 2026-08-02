@@ -23,8 +23,7 @@ TRIGGER_LABELS = {
 
 class NotificationProvider(ABC):
     @abstractmethod
-    async def send(self, recipient: str, message: str, config: NotificationConfig | None = None) -> bool:
-        ...
+    async def send(self, recipient: str, message: str, config: NotificationConfig | None = None) -> bool: ...
 
 
 class TwilioSMSProvider(NotificationProvider):
@@ -38,6 +37,7 @@ class TwilioSMSProvider(NotificationProvider):
             return False
         try:
             from twilio.rest import Client
+
             client = Client(sid, token)
             client.messages.create(body=message, from_=from_, to=recipient)
             logger.info("sms_sent", recipient=recipient)
@@ -48,7 +48,7 @@ class TwilioSMSProvider(NotificationProvider):
 
 
 class LogOnlySMSProvider(NotificationProvider):
-    async def send(self, recipient: str, message: str, config: NotificationConfig | None = None) -> bool:
+    async def send(self, recipient: str, message: str, _config: NotificationConfig | None = None) -> bool:
         logger.info("sms_log_only", recipient=recipient, message=message)
         return True
 
@@ -81,7 +81,7 @@ class SMTPEmailProvider(NotificationProvider):
 
 
 class LogOnlyEmailProvider(NotificationProvider):
-    async def send(self, recipient: str, message: str, config: NotificationConfig | None = None) -> bool:
+    async def send(self, recipient: str, message: str, _config: NotificationConfig | None = None) -> bool:
         logger.info("email_log_only", recipient=recipient, message=message)
         return True
 
@@ -108,9 +108,7 @@ async def send_notification(
     customer_phone: str | None = None,
     customer_email: str | None = None,
 ) -> list[dict]:
-    result = await db.execute(
-        select(NotificationConfig).where(NotificationConfig.company_id == company_id)
-    )
+    result = await db.execute(select(NotificationConfig).where(NotificationConfig.company_id == company_id))
     ncfg = result.scalar_one_or_none()
     if not ncfg:
         logger.info("no_notification_config", company_id=str(company_id))

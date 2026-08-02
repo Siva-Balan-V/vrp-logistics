@@ -1,12 +1,11 @@
 """Tests for VRP solver with synthetic matrices."""
 
 import numpy as np
-import pytest
 
 from app.optimization.vrp_solver import (
-    VRPInput,
     RouteResult,
     SolverOutput,
+    VRPInput,
     _scale_matrix,
     solve_vrp,
 )
@@ -28,12 +27,13 @@ def test_scale_matrix_zero():
 
 def test_solve_vrp_two_deliveries():
     """Solver should assign both deliveries to same vehicle."""
-    n = 3  # depot + 2 deliveries
-    dist = np.array([
-        [0.0, 10.0, 20.0],
-        [10.0, 0.0, 15.0],
-        [20.0, 15.0, 0.0],
-    ])
+    dist = np.array(
+        [
+            [0.0, 10.0, 20.0],
+            [10.0, 0.0, 15.0],
+            [20.0, 15.0, 0.0],
+        ]
+    )
     dur = dist * 120  # 120 seconds per km
 
     inp = VRPInput(
@@ -63,13 +63,14 @@ def test_solve_vrp_two_deliveries():
 
 def test_solve_vrp_capacity_constraint():
     """Solver should respect vehicle capacity."""
-    n = 4  # depot + 3 deliveries
-    dist = np.array([
-        [0.0, 10.0, 20.0, 30.0],
-        [10.0, 0.0, 15.0, 25.0],
-        [20.0, 15.0, 0.0, 10.0],
-        [30.0, 25.0, 10.0, 0.0],
-    ])
+    dist = np.array(
+        [
+            [0.0, 10.0, 20.0, 30.0],
+            [10.0, 0.0, 15.0, 25.0],
+            [20.0, 15.0, 0.0, 10.0],
+            [30.0, 25.0, 10.0, 0.0],
+        ]
+    )
     dur = dist * 120
 
     inp = VRPInput(
@@ -87,22 +88,19 @@ def test_solve_vrp_capacity_constraint():
     output = solve_vrp(inp)
 
     for route in output.routes:
-        delivery_demand = sum(
-            inp.demands[inp.location_ids.index(lid)]
-            for lid in route.location_ids
-            if lid != 0
-        )
+        delivery_demand = sum(inp.demands[inp.location_ids.index(lid)] for lid in route.location_ids if lid != 0)
         assert delivery_demand <= 2
 
 
 def test_solve_vrp_all_unassigned_when_impossible():
     """All deliveries should be unassigned when capacity is 0."""
-    n = 3
-    dist = np.array([
-        [0.0, 10.0, 20.0],
-        [10.0, 0.0, 15.0],
-        [20.0, 15.0, 0.0],
-    ])
+    dist = np.array(
+        [
+            [0.0, 10.0, 20.0],
+            [10.0, 0.0, 15.0],
+            [20.0, 15.0, 0.0],
+        ]
+    )
     dur = dist * 120
 
     inp = VRPInput(
@@ -124,12 +122,13 @@ def test_solve_vrp_all_unassigned_when_impossible():
 
 def test_solve_vrp_solver_output_types():
     """SolverOutput should have the correct structure."""
-    n = 3
-    dist = np.array([
-        [0.0, 10.0, 20.0],
-        [10.0, 0.0, 15.0],
-        [20.0, 15.0, 0.0],
-    ])
+    dist = np.array(
+        [
+            [0.0, 10.0, 20.0],
+            [10.0, 0.0, 15.0],
+            [20.0, 15.0, 0.0],
+        ]
+    )
     dur = dist * 120
 
     inp = VRPInput(

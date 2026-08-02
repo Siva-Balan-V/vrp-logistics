@@ -13,7 +13,9 @@ logger = structlog.get_logger(__name__)
 def get_stripe():
     """Lazy-import stripe and set the API key."""
     import stripe as _stripe
+
     from app.config import get_settings
+
     _stripe.api_key = get_settings().STRIPE_SECRET_KEY
     return _stripe
 
@@ -54,9 +56,7 @@ async def create_checkout_session(
         return None
 
 
-async def create_portal_session(
-    customer_id: str, return_url: str
-) -> str | None:
+async def create_portal_session(customer_id: str, return_url: str) -> str | None:
     """Create a Stripe Customer Portal session for managing subscription."""
     stripe = get_stripe()
     if not stripe.api_key:
@@ -97,6 +97,7 @@ async def get_or_create_customer(company_id: str, company_name: str, email: str)
 def map_stripe_price_to_plan(price_id: str) -> str | None:
     """Map a Stripe price ID to a plan name."""
     from app.config import get_settings
+
     settings = get_settings()
     mapping = {
         settings.STRIPE_PRICE_PRO: "pro",
@@ -108,6 +109,7 @@ def map_stripe_price_to_plan(price_id: str) -> str | None:
 def construct_webhook_event(payload: bytes, sig_header: str) -> dict | None:
     """Verify and construct a Stripe webhook event."""
     from app.config import get_settings
+
     settings = get_settings()
     if not settings.STRIPE_WEBHOOK_SECRET:
         logger.warning("stripe_webhook_secret_not_set")
