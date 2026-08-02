@@ -32,7 +32,9 @@ export default function useWebSocket(runId, token, onMessage) {
       try {
         const data = JSON.parse(event.data)
         if (onMessage) onMessage(data)
-      } catch {}
+      } catch {
+        // ignore malformed messages
+      }
     }
 
     ws.onerror = () => {}
