@@ -13,16 +13,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import get_settings
-from app.database import init_db
+from app.database import init_db, wait_for_db
 from app.middleware.metrics import MetricsMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.models.schemas import HealthResponse
+from app.routes.admin import router as admin_router
+from app.routes.analytics import router as analytics_router
 from app.routes.auth import router as auth_router
+from app.routes.billing import router as billing_router
 from app.routes.companies import router as company_router
 from app.routes.drivers import router as drivers_router
-from app.routes.analytics import router as analytics_router
-from app.routes.admin import router as admin_router
-from app.routes.billing import router as billing_router
 from app.routes.notifications import router as notifications_router
 from app.routes.optimization import router as opt_router
 from app.routes.webhooks import router as webhooks_router
@@ -44,14 +44,13 @@ shared_processors = [
     structlog.stdlib.add_log_level,
 ]
 
-if settings.LOG_FORMAT == "json":
-    renderer = structlog.processors.JSONRenderer()
-else:
-    renderer = structlog.dev.ConsoleRenderer()
+renderer = structlog.processors.JSONRenderer() if settings.LOG_FORMAT == "json" else structlog.dev.ConsoleRenderer()
 
 if settings.LOG_FILE:
     handler = logging.handlers.RotatingFileHandler(
-        settings.LOG_FILE, maxBytes=10_485_760, backupCount=5,
+        settings.LOG_FILE,
+        maxBytes=10_485_760,
+        backupCount=5,
     )
     handler.setFormatter(
         structlog.stdlib.ProcessorFormatter(
@@ -84,6 +83,7 @@ logger = structlog.get_logger(__name__)
 async def lifespan(app: FastAPI):
     init_cache(settings.REDIS_URL)
     init_db(settings.DATABASE_URL)
+    await wait_for_db(settings.DATABASE_URL)
     if not settings.JWT_SECRET_KEY:
         logger.warning("jwt_secret_not_set", detail="JWT_SECRET_KEY is empty — set it in .env for production")
     elif settings.JWT_SECRET_KEY == "CHANGE-ME-IN-PRODUCTION":
@@ -171,7 +171,7 @@ def create_app() -> FastAPI:
         return {"message": "VRP Logistics Optimizer API", "docs": "/docs"}
 
     # ── WebSocket ─────────────────────────────────────────────────────────────
-    from fastapi import WebSocket, WebSocketDisconnect, Query
+    from fastapi import Query, WebSocket, WebSocketDisconnect
 
     @app.websocket("/api/v1/ws/optimization/{run_id}")
     async def ws_optimization(
@@ -181,6 +181,7 @@ def create_app() -> FastAPI:
     ):
         if token:
             from app.services.auth import decode_token
+
             payload = decode_token(token)
             if not payload:
                 await ws.close(code=4001)
