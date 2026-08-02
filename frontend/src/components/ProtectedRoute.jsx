@@ -6,15 +6,25 @@ export default function ProtectedRoute({ children }) {
 
   if (loading) {
     return (
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        minHeight: '100vh', background: 'var(--bg)',
-      }}>
-        <div style={{
-          width: 48, height: 48, border: '3px solid var(--border)',
-          borderTopColor: 'var(--accent)', borderRadius: '50%',
-          animation: 'spin 0.8s linear infinite',
-        }} />
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+          background: 'var(--bg)',
+        }}
+      >
+        <div
+          style={{
+            width: 48,
+            height: 48,
+            border: '3px solid var(--border)',
+            borderTopColor: 'var(--accent)',
+            borderRadius: '50%',
+            animation: 'spin 0.8s linear infinite',
+          }}
+        />
       </div>
     )
   }

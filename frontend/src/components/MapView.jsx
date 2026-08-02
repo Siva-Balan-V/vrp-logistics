@@ -2,7 +2,14 @@ import { useEffect, useRef, useMemo, useState } from 'react'
 import L from 'leaflet'
 import { vehicleColor } from '../api.js'
 
-export default function MapView({ result, depot, depots, deliveries, selectedVehicle, onSelectVehicle }) {
+export default function MapView({
+  result,
+  depot,
+  depots,
+  deliveries,
+  selectedVehicle,
+  onSelectVehicle,
+}) {
   const [showDensity, setShowDensity] = useState(false)
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
@@ -172,9 +179,7 @@ export default function MapView({ result, depot, depots, deliveries, selectedVeh
 
     // Unassigned locations (red X)
     const unassignedCoords = deliveries
-      ? result.unassigned
-          .map((id) => deliveries.find((d) => d.id === id))
-          .filter(Boolean)
+      ? result.unassigned.map((id) => deliveries.find((d) => d.id === id)).filter(Boolean)
       : []
     unassignedCoords.forEach((loc) => {
       const xIcon = L.divIcon({
@@ -190,7 +195,10 @@ export default function MapView({ result, depot, depots, deliveries, selectedVeh
       })
       const marker = L.marker([loc.lat, loc.lon], { icon: xIcon })
         .addTo(map)
-        .bindTooltip(`<strong>Unassigned</strong><br/>#${loc.id}${loc.label ? ` · ${loc.label}` : ''}`, { sticky: true })
+        .bindTooltip(
+          `<strong>Unassigned</strong><br/>#${loc.id}${loc.label ? ` · ${loc.label}` : ''}`,
+          { sticky: true },
+        )
       layersRef.current.push(marker)
       bounds.push([loc.lat, loc.lon])
     })
@@ -246,7 +254,10 @@ export default function MapView({ result, depot, depots, deliveries, selectedVeh
             aria-pressed={selectedVehicle === v.vehicle_id}
             aria-label={`Vehicle ${v.vehicle_id}`}
             onClick={() => onSelectVehicle(selectedVehicle === v.vehicle_id ? null : v.vehicle_id)}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelectVehicle(selectedVehicle === v.vehicle_id ? null : v.vehicle_id) }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ')
+                onSelectVehicle(selectedVehicle === v.vehicle_id ? null : v.vehicle_id)
+            }}
             style={{
               display: 'flex',
               alignItems: 'center',

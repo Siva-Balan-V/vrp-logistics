@@ -17,7 +17,7 @@ describe('ErrorBoundary', () => {
     render(
       <ErrorBoundary>
         <GoodChild />
-      </ErrorBoundary>
+      </ErrorBoundary>,
     )
     expect(screen.getByText('Working content')).toBeInTheDocument()
   })
@@ -26,7 +26,7 @@ describe('ErrorBoundary', () => {
     render(
       <ErrorBoundary>
         <BadChild />
-      </ErrorBoundary>
+      </ErrorBoundary>,
     )
     expect(screen.getByText('Something went wrong')).toBeInTheDocument()
     expect(screen.getByText('An unexpected error occurred. Please try again.')).toBeInTheDocument()
@@ -36,7 +36,7 @@ describe('ErrorBoundary', () => {
     render(
       <ErrorBoundary>
         <BadChild />
-      </ErrorBoundary>
+      </ErrorBoundary>,
     )
     expect(screen.getByText('Try Again')).toBeInTheDocument()
   })
@@ -46,7 +46,7 @@ describe('ErrorBoundary', () => {
     render(
       <ErrorBoundary onReset={onReset}>
         <BadChild />
-      </ErrorBoundary>
+      </ErrorBoundary>,
     )
     fireEvent.click(screen.getByText('Try Again'))
     expect(onReset).toHaveBeenCalledTimes(1)

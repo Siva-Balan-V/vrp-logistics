@@ -27,7 +27,7 @@ describe('VEHICLE_COLORS', () => {
   })
 
   it('should contain valid hex colors', () => {
-    VEHICLE_COLORS.forEach(color => {
+    VEHICLE_COLORS.forEach((color) => {
       expect(color).toMatch(/^#[0-9a-f]{6}$/i)
     })
   })

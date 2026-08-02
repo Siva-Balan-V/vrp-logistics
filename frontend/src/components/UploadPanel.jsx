@@ -106,7 +106,20 @@ export default function UploadPanel({ phase, error, onSubmit }) {
     payload.routing_backend = routing
     payload.traffic = traffic
     onSubmit(payload)
-  }, [nLocs, city, nVehicles, capacity, speed, routing, traffic, enableTimeWindows, useTwoDepots, solverTimeLimit, solverAlgorithm, onSubmit])
+  }, [
+    nLocs,
+    city,
+    nVehicles,
+    capacity,
+    speed,
+    routing,
+    traffic,
+    enableTimeWindows,
+    useTwoDepots,
+    solverTimeLimit,
+    solverAlgorithm,
+    onSubmit,
+  ])
 
   const handleFileUpload = useCallback(
     (file) => {

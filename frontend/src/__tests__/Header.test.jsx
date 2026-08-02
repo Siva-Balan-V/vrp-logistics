@@ -5,7 +5,11 @@ import { AuthProvider } from '../context/AuthContext.jsx'
 import { ThemeProvider } from '../context/ThemeContext.jsx'
 
 function renderWithProviders(ui) {
-  return render(<ThemeProvider><AuthProvider>{ui}</AuthProvider></ThemeProvider>)
+  return render(
+    <ThemeProvider>
+      <AuthProvider>{ui}</AuthProvider>
+    </ThemeProvider>,
+  )
 }
 
 describe('Header', () => {

@@ -24,59 +24,109 @@ export default function HistoryPage() {
     }
   }, [token])
 
-  useEffect(() => { fetchJobs() }, [fetchJobs])
+  useEffect(() => {
+    fetchJobs()
+  }, [fetchJobs])
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
-      <header style={{
-        height: 64, background: 'var(--bg-1)',
-        borderBottom: '1px solid var(--border)',
-        display: 'flex', alignItems: 'center',
-        justifyContent: 'space-between', padding: '0 24px',
-      }}>
+      <header
+        style={{
+          height: 64,
+          background: 'var(--bg-1)',
+          borderBottom: '1px solid var(--border)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 24px',
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontFamily: 'var(--display)', fontWeight: 800, fontSize: 18, letterSpacing: '-0.03em' }}>
+          <span
+            style={{
+              fontFamily: 'var(--display)',
+              fontWeight: 800,
+              fontSize: 18,
+              letterSpacing: '-0.03em',
+            }}
+          >
             Route<span style={{ color: 'var(--accent)' }}>Forge</span>
           </span>
-          <span style={{
-            fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text-3)',
-            background: 'var(--bg-3)', border: '1px solid var(--border)',
-            padding: '2px 7px', borderRadius: 4,
-          }}>History</span>
+          <span
+            style={{
+              fontFamily: 'var(--mono)',
+              fontSize: 10,
+              color: 'var(--text-3)',
+              background: 'var(--bg-3)',
+              border: '1px solid var(--border)',
+              padding: '2px 7px',
+              borderRadius: 4,
+            }}
+          >
+            History
+          </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <a href="/" style={{
-            fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--accent)',
-            textDecoration: 'none', padding: '5px 10px',
-            border: '1px solid var(--accent)', borderRadius: 'var(--radius)',
-          }}>← New Optimization</a>
+          <a
+            href="/"
+            style={{
+              fontFamily: 'var(--mono)',
+              fontSize: 11,
+              color: 'var(--accent)',
+              textDecoration: 'none',
+              padding: '5px 10px',
+              border: '1px solid var(--accent)',
+              borderRadius: 'var(--radius)',
+            }}
+          >
+            ← New Optimization
+          </a>
           {user && (
             <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-2)' }}>
               {user.email}
             </span>
           )}
           {user && (
-            <button onClick={logout} style={{
-              background: 'var(--bg-3)', color: 'var(--text-2)',
-              border: '1px solid var(--border)', borderRadius: 'var(--radius)',
-              padding: '6px 14px', fontSize: 12,
-            }}>Logout</button>
+            <button
+              onClick={logout}
+              style={{
+                background: 'var(--bg-3)',
+                color: 'var(--text-2)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                padding: '6px 14px',
+                fontSize: 12,
+              }}
+            >
+              Logout
+            </button>
           )}
-          <button onClick={toggleTheme} style={{
-            background: 'none', color: 'var(--text-3)',
-            border: '1px solid var(--border)', borderRadius: 'var(--radius)',
-            padding: '5px 10px', fontSize: 14,
-          }}>
+          <button
+            onClick={toggleTheme}
+            style={{
+              background: 'none',
+              color: 'var(--text-3)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
+              padding: '5px 10px',
+              fontSize: 14,
+            }}
+          >
             {theme === 'dark' ? '☀' : '☾'}
           </button>
         </div>
       </header>
 
       <main style={{ maxWidth: 960, margin: '0 auto', padding: '32px 24px' }}>
-        <h1 style={{
-          fontFamily: 'var(--display)', fontSize: 22, fontWeight: 700,
-          marginBottom: 24, color: 'var(--text-1)',
-        }}>
+        <h1
+          style={{
+            fontFamily: 'var(--display)',
+            fontSize: 22,
+            fontWeight: 700,
+            marginBottom: 24,
+            color: 'var(--text-1)',
+          }}
+        >
           Optimization History
         </h1>
 
@@ -90,21 +140,48 @@ export default function HistoryPage() {
         )}
 
         {!loading && jobs.length > 0 && (
-          <div style={{
-            background: 'var(--bg-1)', borderRadius: 'var(--radius-lg)',
-            border: '1px solid var(--border)', overflow: 'hidden',
-          }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: 'var(--mono)' }}>
+          <div
+            style={{
+              background: 'var(--bg-1)',
+              borderRadius: 'var(--radius-lg)',
+              border: '1px solid var(--border)',
+              overflow: 'hidden',
+            }}
+          >
+            <table
+              style={{
+                width: '100%',
+                borderCollapse: 'collapse',
+                fontSize: 12,
+                fontFamily: 'var(--mono)',
+              }}
+            >
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-2)' }}>
-                  <th style={{ padding: '10px 14px', textAlign: 'left', color: 'var(--text-3)' }}>Date</th>
-                  <th style={{ padding: '10px 14px', textAlign: 'left', color: 'var(--text-3)' }}>Job ID</th>
-                  <th style={{ padding: '10px 14px', textAlign: 'left', color: 'var(--text-3)' }}>Status</th>
-                  <th style={{ padding: '10px 14px', textAlign: 'right', color: 'var(--text-3)' }}>Locs</th>
-                  <th style={{ padding: '10px 14px', textAlign: 'right', color: 'var(--text-3)' }}>Vehicles</th>
-                  <th style={{ padding: '10px 14px', textAlign: 'right', color: 'var(--text-3)' }}>Distance</th>
-                  <th style={{ padding: '10px 14px', textAlign: 'right', color: 'var(--text-3)' }}>Solver</th>
-                  <th style={{ padding: '10px 14px', textAlign: 'center', color: 'var(--text-3)' }}>Actions</th>
+                  <th style={{ padding: '10px 14px', textAlign: 'left', color: 'var(--text-3)' }}>
+                    Date
+                  </th>
+                  <th style={{ padding: '10px 14px', textAlign: 'left', color: 'var(--text-3)' }}>
+                    Job ID
+                  </th>
+                  <th style={{ padding: '10px 14px', textAlign: 'left', color: 'var(--text-3)' }}>
+                    Status
+                  </th>
+                  <th style={{ padding: '10px 14px', textAlign: 'right', color: 'var(--text-3)' }}>
+                    Locs
+                  </th>
+                  <th style={{ padding: '10px 14px', textAlign: 'right', color: 'var(--text-3)' }}>
+                    Vehicles
+                  </th>
+                  <th style={{ padding: '10px 14px', textAlign: 'right', color: 'var(--text-3)' }}>
+                    Distance
+                  </th>
+                  <th style={{ padding: '10px 14px', textAlign: 'right', color: 'var(--text-3)' }}>
+                    Solver
+                  </th>
+                  <th style={{ padding: '10px 14px', textAlign: 'center', color: 'var(--text-3)' }}>
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -117,13 +194,17 @@ export default function HistoryPage() {
                       {job.job_id.slice(0, 8)}...
                     </td>
                     <td style={{ padding: '10px 14px' }}>
-                      <span style={{
-                        color: job.status === 'success' ? 'var(--green)' : 'var(--text-3)',
-                      }}>
+                      <span
+                        style={{
+                          color: job.status === 'success' ? 'var(--green)' : 'var(--text-3)',
+                        }}
+                      >
                         {job.status}
                       </span>
                     </td>
-                    <td style={{ padding: '10px 14px', textAlign: 'right', color: 'var(--text-1)' }}>
+                    <td
+                      style={{ padding: '10px 14px', textAlign: 'right', color: 'var(--text-1)' }}
+                    >
                       {job.total_locations ?? '—'}
                       {job.unassigned_count > 0 && (
                         <span style={{ color: 'var(--red)', marginLeft: 4 }}>
@@ -131,21 +212,38 @@ export default function HistoryPage() {
                         </span>
                       )}
                     </td>
-                    <td style={{ padding: '10px 14px', textAlign: 'right', color: 'var(--text-1)' }}>
+                    <td
+                      style={{ padding: '10px 14px', textAlign: 'right', color: 'var(--text-1)' }}
+                    >
                       {job.vehicles_used ?? '—'}
                     </td>
-                    <td style={{ padding: '10px 14px', textAlign: 'right', color: 'var(--text-1)' }}>
-                      {job.total_distance_km != null ? `${job.total_distance_km.toFixed(1)} km` : '—'}
+                    <td
+                      style={{ padding: '10px 14px', textAlign: 'right', color: 'var(--text-1)' }}
+                    >
+                      {job.total_distance_km != null
+                        ? `${job.total_distance_km.toFixed(1)} km`
+                        : '—'}
                     </td>
-                    <td style={{ padding: '10px 14px', textAlign: 'right', color: 'var(--text-2)' }}>
-                      {job.solver_time_seconds != null ? `${job.solver_time_seconds.toFixed(2)}s` : '—'}
+                    <td
+                      style={{ padding: '10px 14px', textAlign: 'right', color: 'var(--text-2)' }}
+                    >
+                      {job.solver_time_seconds != null
+                        ? `${job.solver_time_seconds.toFixed(2)}s`
+                        : '—'}
                     </td>
                     <td style={{ padding: '10px 14px', textAlign: 'center' }}>
-                      <button onClick={() => navigate(`/?job=${job.job_id}`)} style={{
-                        background: 'var(--bg-3)', color: 'var(--accent)',
-                        border: '1px solid var(--border)', borderRadius: 'var(--radius)',
-                        padding: '4px 10px', fontSize: 11, cursor: 'pointer',
-                      }}>
+                      <button
+                        onClick={() => navigate(`/?job=${job.job_id}`)}
+                        style={{
+                          background: 'var(--bg-3)',
+                          color: 'var(--accent)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius)',
+                          padding: '4px 10px',
+                          fontSize: 11,
+                          cursor: 'pointer',
+                        }}
+                      >
                         View
                       </button>
                     </td>

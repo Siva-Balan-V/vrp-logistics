@@ -36,10 +36,15 @@ export function AuthProvider({ children }) {
   }, [])
 
   useEffect(() => {
-    if (!token) { setLoading(false); return }
+    if (!token) {
+      setLoading(false)
+      return
+    }
     apiFetch('/api/v1/auth/me', { token })
-      .then(u => setUser(u))
-      .catch(() => { logout() })
+      .then((u) => setUser(u))
+      .catch(() => {
+        logout()
+      })
       .finally(() => setLoading(false))
   }, [token, logout])
 
