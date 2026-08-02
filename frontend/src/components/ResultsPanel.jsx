@@ -1,8 +1,10 @@
 import { useState, useCallback } from 'react'
 import { vehicleColor, exportRoute } from '../api.js'
+import { useAuth } from '../context/AuthContext.jsx'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
 export default function ResultsPanel({ result, selectedVehicle, onSelectVehicle }) {
+  const { token } = useAuth()
   const [tab, setTab] = useState('routes') // routes | unassigned | chart | json
   const [copied, setCopied] = useState(false)
 
@@ -17,7 +19,7 @@ export default function ResultsPanel({ result, selectedVehicle, onSelectVehicle 
   const handleExport = useCallback(
     async (format) => {
       try {
-        const blob = await exportRoute(result.job_id, format)
+        const blob = await exportRoute(result.job_id, format, token)
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
@@ -28,7 +30,7 @@ export default function ResultsPanel({ result, selectedVehicle, onSelectVehicle 
         console.error('Export failed:', err)
       }
     },
-    [result.job_id],
+    [result.job_id, token],
   )
 
   return (

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { apiFetch } from '../api.js'
 
 const AuthContext = createContext(null)
@@ -7,6 +7,11 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [token, setToken] = useState(() => localStorage.getItem('access_token'))
   const [loading, setLoading] = useState(true)
+  const tokenRef = useRef(token)
+
+  useEffect(() => {
+    tokenRef.current = token
+  }, [token])
 
   const login = useCallback(async (email, password) => {
     const data = await apiFetch('/api/v1/auth/login', {
@@ -41,11 +46,15 @@ export function AuthProvider({ children }) {
       return
     }
     apiFetch('/api/v1/auth/me', { token })
-      .then((u) => setUser(u))
-      .catch(() => {
-        logout()
+      .then((u) => {
+        if (tokenRef.current === token) setUser(u)
       })
-      .finally(() => setLoading(false))
+      .catch((err) => {
+        if (tokenRef.current === token && err?.status === 401) logout()
+      })
+      .finally(() => {
+        if (tokenRef.current === token) setLoading(false)
+      })
   }, [token, logout])
 
   return (

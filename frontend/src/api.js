@@ -6,7 +6,9 @@ export async function apiFetch(path, { token, ...options } = {}) {
   const res = await fetch(`${BASE}${path}`, { ...options, headers })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new Error(err.detail || `HTTP ${res.status}`)
+    const error = new Error(err.detail || `HTTP ${res.status}`)
+    error.status = res.status
+    throw error
   }
   return res.json()
 }
@@ -202,7 +204,9 @@ export async function exportRoute(jobId, format, token) {
   const res = await fetch(`${BASE}/api/v1/routes/${jobId}/export?format=${format}`, { headers })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new Error(err.detail || `Export failed: ${res.status}`)
+    const error = new Error(err.detail || `Export failed: ${res.status}`)
+    error.status = res.status
+    throw error
   }
   return res.blob()
 }

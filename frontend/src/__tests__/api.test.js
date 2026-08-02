@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { optimizeRoutes as rawOptimizeRoutes, vehicleColor, VEHICLE_COLORS } from '../api.js'
+import {
+  optimizeRoutes as rawOptimizeRoutes,
+  apiFetch,
+  exportRoute,
+  vehicleColor,
+  VEHICLE_COLORS,
+} from '../api.js'
 
 // We use the real import but mock fetch globally
 const mockFetch = vi.fn()
@@ -120,5 +126,66 @@ describe('optimizeRoutes', () => {
 
     await rawOptimizeRoutes(samplePayload)
     expect(requestBody).toBe(JSON.stringify(samplePayload))
+  })
+})
+
+describe('apiFetch', () => {
+  beforeEach(() => {
+    mockFetch.mockReset()
+  })
+
+  it('should attach status to thrown errors', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      json: () => Promise.resolve({ detail: 'Unauthorized' }),
+    })
+
+    await expect(apiFetch('/api/v1/auth/me')).rejects.toMatchObject({
+      message: 'Unauthorized',
+      status: 401,
+    })
+  })
+
+  it('should attach status even when body JSON parsing fails', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      statusText: 'Service Unavailable',
+      json: () => Promise.reject(new Error('Invalid JSON')),
+    })
+
+    await expect(apiFetch('/api/v1/routes')).rejects.toMatchObject({
+      message: 'Service Unavailable',
+      status: 503,
+    })
+  })
+})
+
+describe('exportRoute', () => {
+  beforeEach(() => {
+    mockFetch.mockReset()
+  })
+
+  it('should attach status to thrown errors', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      json: () => Promise.resolve({ detail: 'No result found' }),
+    })
+
+    await expect(exportRoute('job-1', 'csv')).rejects.toMatchObject({
+      message: 'No result found',
+      status: 404,
+    })
+  })
+
+  it('should include the bearer token header when provided', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, blob: () => Promise.resolve(new Blob()) })
+
+    await exportRoute('job-1', 'gpx', 'secret-token')
+    const [url, options] = mockFetch.mock.calls[0]
+    expect(url).toContain('/api/v1/routes/job-1/export?format=gpx')
+    expect(options.headers.Authorization).toBe('Bearer secret-token')
   })
 })
