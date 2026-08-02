@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from app.dependencies import require_user
+from app.dependencies import require_principal
 from app.main import create_app
 from app.models.schemas import OptimizeResponse, VehicleRoute
 
@@ -42,7 +42,7 @@ def client():
     app = create_app()
     mock_user = MagicMock()
     mock_user.company_id = "00000000-0000-0000-0000-000000000001"
-    app.dependency_overrides[require_user] = lambda: mock_user
+    app.dependency_overrides[require_principal] = lambda: mock_user
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
