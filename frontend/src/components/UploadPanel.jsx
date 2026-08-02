@@ -1,5 +1,9 @@
 import { useState, useCallback, useRef } from 'react'
 
+function isNum(v) {
+  return typeof v === 'number' && Number.isFinite(v)
+}
+
 function validatePayload(json) {
   const errors = []
   if (!json.deliveries || !Array.isArray(json.deliveries) || json.deliveries.length === 0) {
@@ -7,18 +11,32 @@ function validatePayload(json) {
   } else {
     json.deliveries.forEach((d, i) => {
       if (d.id == null) errors.push(`deliveries[${i}]: missing "id"`)
-      if (d.lat == null) errors.push(`deliveries[${i}]: missing "lat"`)
-      if (d.lon == null) errors.push(`deliveries[${i}]: missing "lon"`)
+      if (!isNum(d.lat) || d.lat < -90 || d.lat > 90)
+        errors.push(`deliveries[${i}]: "lat" must be a number in [-90, 90]`)
+      if (!isNum(d.lon) || d.lon < -180 || d.lon > 180)
+        errors.push(`deliveries[${i}]: "lon" must be a number in [-180, 180]`)
+      if (d.demand != null && (!isNum(d.demand) || d.demand < 0))
+        errors.push(`deliveries[${i}]: "demand" must be a non-negative number`)
     })
   }
-  if (!json.depots && !json.depot) {
+  const depots = json.depots || (json.depot ? [json.depot] : [])
+  if (!depots.length) {
     errors.push('"depots" or "depot" is required')
+  } else {
+    depots.forEach((dep, i) => {
+      if (!isNum(dep.lat) || dep.lat < -90 || dep.lat > 90)
+        errors.push(`depot[${i}]: "lat" must be a number in [-90, 90]`)
+      if (!isNum(dep.lon) || dep.lon < -180 || dep.lon > 180)
+        errors.push(`depot[${i}]: "lon" must be a number in [-180, 180]`)
+    })
   }
   if (!json.vehicles || typeof json.vehicles !== 'object') {
     errors.push('"vehicles" must be an object')
   } else {
-    if (json.vehicles.count == null) errors.push('vehicles: missing "count"')
-    if (json.vehicles.capacity == null) errors.push('vehicles: missing "capacity"')
+    if (!isNum(json.vehicles.count) || json.vehicles.count <= 0)
+      errors.push('vehicles: "count" must be a positive number')
+    if (!isNum(json.vehicles.capacity) || json.vehicles.capacity <= 0)
+      errors.push('vehicles: "capacity" must be a positive number')
   }
   return errors
 }

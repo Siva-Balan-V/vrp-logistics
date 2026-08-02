@@ -162,6 +162,7 @@ function AppContent() {
         setJobData(payload)
         setResult(data)
         setPhase('results')
+        loadedRef.current = true
         setSearchParams({ job: data.job_id }, { replace: true })
       } catch (err) {
         setRunId(null)
@@ -180,6 +181,7 @@ function AppContent() {
     setError(null)
     setSelectedVehicle(null)
     setSolverProgress({ pct: 0, message: '' })
+    loadedRef.current = false
     setSearchParams({}, { replace: true })
   }, [setSearchParams])
 

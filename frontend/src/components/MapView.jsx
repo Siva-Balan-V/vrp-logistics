@@ -2,6 +2,15 @@ import { useEffect, useRef, useMemo, useState } from 'react'
 import L from 'leaflet'
 import { vehicleColor } from '../api.js'
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
 export default function MapView({
   result,
   depot,
@@ -147,7 +156,9 @@ export default function MapView({
       const label = depotList.length > 1 ? `Depot ${String.fromCharCode(65 + idx)}` : 'Depot'
       const dm = L.marker([dep.lat, dep.lon], { icon: depotIcon })
         .addTo(map)
-        .bindTooltip(`<strong>${label}</strong><br/>${dep.label || label}`, { sticky: true })
+        .bindTooltip(`<strong>${label}</strong><br/>${escapeHtml(dep.label) || label}`, {
+          sticky: true,
+        })
       layersRef.current.push(dm)
       bounds.push([dep.lat, dep.lon])
     })
@@ -196,7 +207,7 @@ export default function MapView({
       const marker = L.marker([loc.lat, loc.lon], { icon: xIcon })
         .addTo(map)
         .bindTooltip(
-          `<strong>Unassigned</strong><br/>#${loc.id}${loc.label ? ` · ${loc.label}` : ''}`,
+          `<strong>Unassigned</strong><br/>#${loc.id}${loc.label ? ` · ${escapeHtml(loc.label)}` : ''}`,
           { sticky: true },
         )
       layersRef.current.push(marker)

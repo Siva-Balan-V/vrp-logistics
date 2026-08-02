@@ -11,6 +11,15 @@ const STATUS_COLORS = {
   on_route: 'var(--accent)',
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
 export default function DriverDetailPage() {
   const { id } = useParams()
   const { token, user, logout } = useAuth()
@@ -25,20 +34,24 @@ export default function DriverDetailPage() {
   const [assignVehicleId, setAssignVehicleId] = useState('')
   const [eta, setEta] = useState(null)
   const etaInterval = useRef(null)
+  const idRef = useRef(id)
 
   const fetchDriver = useCallback(async () => {
     try {
       setLoading(true)
       const d = await getDriver(id, token)
-      setDriver(d)
+      if (idRef.current === id) setDriver(d)
     } finally {
-      setLoading(false)
+      if (idRef.current === id) setLoading(false)
     }
   }, [id, token])
 
   useEffect(() => {
+    idRef.current = id
+    setDriver(null)
+    setEta(null)
     fetchDriver()
-  }, [fetchDriver])
+  }, [id, fetchDriver])
 
   const fetchJobs = useCallback(async () => {
     try {
@@ -56,19 +69,27 @@ export default function DriverDetailPage() {
   const fetchEta = useCallback(async () => {
     if (!driver?.current_lat || !driver?.assigned_route) return
     try {
-      setEta(await getDriverEta(id, token))
+      const etaData = await getDriverEta(id, token)
+      if (idRef.current === id) setEta(etaData)
     } catch {
       // keep last known ETA if refresh fails
     }
   }, [id, token, driver?.current_lat, driver?.assigned_route])
 
   useEffect(() => {
+    if (etaInterval.current) {
+      clearInterval(etaInterval.current)
+      etaInterval.current = null
+    }
     if (driver?.current_lat && driver?.assigned_route) {
       fetchEta()
       etaInterval.current = setInterval(fetchEta, 15000)
     }
     return () => {
-      if (etaInterval.current) clearInterval(etaInterval.current)
+      if (etaInterval.current) {
+        clearInterval(etaInterval.current)
+        etaInterval.current = null
+      }
     }
   }, [driver?.current_lat, driver?.assigned_route, fetchEta])
 
@@ -90,7 +111,9 @@ export default function DriverDetailPage() {
       fillOpacity: 0.8,
       weight: 2,
     }).addTo(mapInstanceRef.current)
-    marker.bindTooltip(`<strong>${driver.name}</strong><br/>${driver.status}`)
+    marker.bindTooltip(
+      `<strong>${escapeHtml(driver.name)}</strong><br/>${escapeHtml(driver.status)}`,
+    )
     requestAnimationFrame(() => mapInstanceRef.current?.invalidateSize())
     return () => {
       if (mapInstanceRef.current) {

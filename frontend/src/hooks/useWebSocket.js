@@ -40,6 +40,7 @@ export default function useWebSocket(runId, token, onMessage) {
     ws.onerror = () => {}
 
     ws.onclose = () => {
+      if (wsRef.current !== ws) return
       wsRef.current = null
       if (mountedRef.current && runId) {
         reconnectTimer.current = setTimeout(connect, 2000)
