@@ -7,6 +7,7 @@ import uuid as _uuid
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
+from sqlalchemy import func as sa_func
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -142,7 +143,7 @@ async def get_routes(
 )
 async def export_routes(
     job_id: str,
-    format: str = Query(default="csv", regex="^(csv|gpx)$"),
+    format: str = Query(default="csv", pattern="^(csv|gpx)$"),
     db: AsyncSession = Depends(get_db),
     user: User | None = Depends(get_current_user),
 ) -> Response:
