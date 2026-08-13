@@ -8,6 +8,7 @@ from fastapi import Depends, Header, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.database import get_db, is_db_enabled
 from app.models.db import ApiKey, User
@@ -41,7 +42,9 @@ async def get_current_user(
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid token payload")
 
-    result = await db.execute(select(User).where(User.id == user_id, User.is_active))
+    result = await db.execute(
+        select(User).where(User.id == user_id, User.is_active).options(selectinload(User.company))
+    )
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=401, detail="User not found or inactive")
