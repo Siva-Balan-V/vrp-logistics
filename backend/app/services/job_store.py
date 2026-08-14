@@ -39,6 +39,9 @@ async def persist_job(
         response_json=resp.model_dump(mode="json"),
     )
     db.add(job)
+    # Flush the job first so child rows (routes, locations) reference an
+    # existing parent — there are no ORM relationships to drive insert order.
+    await db.flush()
 
     for vr in resp.vehicles:
         route = VehicleRoute(
