@@ -74,19 +74,20 @@ async def persist_job(
             )
         )
 
-    # Add depot location
-    db.add(
-        Location(
-            job_id=uuid.UUID(resp.job_id),
-            location_id=req.depot.id,
-            lat=req.depot.lat,
-            lon=req.depot.lon,
-            demand=req.depot.demand,
-            label=req.depot.label,
-            is_depot=True,
-            assigned=True,
+    # Add depot location(s)
+    for depot in req.depots:
+        db.add(
+            Location(
+                job_id=uuid.UUID(resp.job_id),
+                location_id=depot.id,
+                lat=depot.lat,
+                lon=depot.lon,
+                demand=depot.demand,
+                label=depot.label,
+                is_depot=True,
+                assigned=True,
+            )
         )
-    )
 
     await db.flush()
     logger.info("job_persisted", job_id=resp.job_id, company_id=str(company_id))
