@@ -95,7 +95,7 @@ pipeline {
                 sh '''
                     docker rm -f vrp-backend vrp-frontend vrp-postgres vrp-redis 2>/dev/null || true
                     docker compose down --remove-orphans 2>/dev/null || true
-                    fuser -k 8000/tcp 2>/dev/null || true
+                    kill -9 $(ss -tlnp sport = :8000 | grep -oP 'pid=\K\d+') 2>/dev/null || true
                     sleep 2
                     docker compose up -d --build
                     sleep 5
