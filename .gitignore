@@ -1,5 +1,6 @@
 # Python
 __pycache__/
+.mimocode/
 *.py[cod]
 *$py.class
 *.so
@@ -34,3 +35,6 @@ docker-compose.override.yml
 
 # Logs
 *.log
+
+# MiMo agent
+.mimocode/

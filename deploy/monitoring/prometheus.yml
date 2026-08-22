@@ -1,0 +1,15 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "vrp-backend"
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - "${BACKEND_METRICS_HOST:-backend}:8000"
+
+  - job_name: "node"
+    static_configs:
+      - targets:
+          - "node-exporter:9100"

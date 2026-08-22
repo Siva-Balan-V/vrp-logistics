@@ -35,7 +35,6 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from typing import Optional
 
 import numpy as np
 import structlog
@@ -47,28 +46,34 @@ logger = structlog.get_logger(__name__)
 # DATA STRUCTURES
 # ─────────────────────────────────────────────
 
+
 @dataclass
 class VRPInput:
     num_vehicles: int
     vehicle_capacity: int
     max_route_duration_seconds: int
-    # n×n matrices (index 0 = depot)
-    distance_matrix: np.ndarray        # kilometres
-    duration_matrix: np.ndarray        # seconds
-    demands: list[int]                 # demand[0] = 0 (depot)
-    location_ids: list[int]            # mapping: internal_index → original_id
+    # n×n matrices (indices 0..num_depots-1 are depots)
+    distance_matrix: np.ndarray  # kilometres
+    duration_matrix: np.ndarray  # seconds
+    demands: list[int]  # demand[0..num_depots-1] = 0 (depots)
+    location_ids: list[int]  # mapping: internal_index → original_id
     speed_kmh: float = 30.0
     solver_time_limit_seconds: int = 60
+    solver_algorithm: str = "gls"  # "gls" = guided local search, "greedy" = first solution only
+    time_windows: list[tuple[int, int]] | None = None  # [(start, end)] per node
+    num_depots: int = 1
+    priorities: list[int] | None = None  # 1-5 per node, higher = harder to drop
 
 
 @dataclass
 class RouteResult:
     vehicle_id: int
-    internal_indices: list[int]        # includes depot at start & end
+    internal_indices: list[int]  # includes depot at start & end
     location_ids: list[int]
     distance_km: float
     time_seconds: float
     packages_delivered: int
+    arrival_times: list[int] = field(default_factory=list)
 
 
 @dataclass
@@ -85,8 +90,8 @@ class SolverOutput:
 # OR-Tools works with integers, so we scale
 # ─────────────────────────────────────────────
 
-_DIST_SCALE = 1000   # store metres (km × 1000) as integers
-_TIME_SCALE = 1      # seconds are already integers
+_DIST_SCALE = 1000  # store metres (km × 1000) as integers
+_TIME_SCALE = 1  # seconds are already integers
 
 
 def _scale_matrix(mat: np.ndarray, scale: int) -> list[list[int]]:
@@ -97,6 +102,7 @@ def _scale_matrix(mat: np.ndarray, scale: int) -> list[list[int]]:
 # ─────────────────────────────────────────────
 # MAIN SOLVER
 # ─────────────────────────────────────────────
+
 
 def solve_vrp(inp: VRPInput) -> SolverOutput:
     t0 = time.perf_counter()
@@ -115,7 +121,10 @@ def solve_vrp(inp: VRPInput) -> SolverOutput:
     )
 
     # ── Routing Manager ──────────────────────────────────────────────────────
-    manager = pywrapcp.RoutingIndexManager(n, inp.num_vehicles, 0)  # depot = 0
+    # Assign vehicles to depots round-robin
+    starts = [i % inp.num_depots for i in range(inp.num_vehicles)]
+    ends = starts[:]
+    manager = pywrapcp.RoutingIndexManager(n, inp.num_vehicles, starts, ends)
     routing = pywrapcp.RoutingModel(manager)
 
     # ── Distance callback ────────────────────────────────────────────────────
@@ -138,12 +147,19 @@ def solve_vrp(inp: VRPInput) -> SolverOutput:
     # ── Time dimension (route duration constraint) ───────────────────────────
     routing.AddDimension(
         time_cb_idx,
-        0,                  # no slack
-        max_dur_int,        # max cumulative time per vehicle
-        True,               # fix cumulative to zero at start
+        0,  # no slack
+        max_dur_int,  # max cumulative time per vehicle
+        True,  # fix cumulative to zero at start
         "Time",
     )
     time_dimension = routing.GetDimensionOrDie("Time")
+
+    # ── Per-node time windows (if provided) ──────────────────────────────────
+    if inp.time_windows is not None:
+        for node_idx in range(n):
+            tw_start, tw_end = inp.time_windows[node_idx]
+            index = manager.NodeToIndex(node_idx)
+            time_dimension.CumulVar(index).SetRange(tw_start, tw_end)
 
     # ── Capacity dimension ────────────────────────────────────────────────────
     def demand_callback(from_idx: int) -> int:
@@ -153,28 +169,28 @@ def solve_vrp(inp: VRPInput) -> SolverOutput:
     demand_cb_idx = routing.RegisterUnaryTransitCallback(demand_callback)
     routing.AddDimensionWithVehicleCapacity(
         demand_cb_idx,
-        0,                                   # no slack
+        0,  # no slack
         [inp.vehicle_capacity] * inp.num_vehicles,
         True,
         "Capacity",
     )
 
-    # ── Allow dropping nodes (unassigned) with a high penalty ─────────────────
-    #   Penalty > max possible route distance → solver prefers visiting over dropping
-    #   but will drop if constraints cannot be satisfied.
+    # ── Allow dropping nodes (unassigned) with priority-scaled penalty ─────────
+    #   Higher priority = higher penalty = solver prefers visiting over dropping
     max_dist = int(np.max(inp.distance_matrix) * _DIST_SCALE * n)
-    penalty = max(max_dist * 10, 1_000_000)
-    for node_idx in range(1, n):           # skip depot (0)
+    for node_idx in range(inp.num_depots, n):  # skip all depots
+        if inp.priorities:
+            priority = inp.priorities[node_idx]
+            penalty = max(int(max_dist * 10 * priority / 5), 1_000_000)
+        else:
+            penalty = max(max_dist * 10, 1_000_000)
         routing.AddDisjunction([manager.NodeToIndex(node_idx)], penalty)
 
     # ── Search parameters ─────────────────────────────────────────────────────
     params = pywrapcp.DefaultRoutingSearchParameters()
-    params.first_solution_strategy = (
-        routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
-    )
-    params.local_search_metaheuristic = (
-        routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
-    )
+    params.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
+    if inp.solver_algorithm == "gls":
+        params.local_search_metaheuristic = routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
     params.time_limit.seconds = inp.solver_time_limit_seconds
     params.log_search = False
 
@@ -206,11 +222,14 @@ def solve_vrp(inp: VRPInput) -> SolverOutput:
         internal_nodes: list[int] = []
         route_dist_m = 0
         route_dur_s = 0
+        arrival_times: list[int] = []
 
         while not routing.IsEnd(idx):
             node = manager.IndexToNode(idx)
             internal_nodes.append(node)
             visited_nodes.add(node)
+            # Capture arrival time from time dimension
+            arrival_times.append(solution.Value(time_dimension.CumulVar(idx)))
             next_idx = solution.Value(routing.NextVar(idx))
             next_node = manager.IndexToNode(next_idx)
             route_dist_m += dist_int[node][next_node]
@@ -220,10 +239,11 @@ def solve_vrp(inp: VRPInput) -> SolverOutput:
         # Append depot at end
         end_node = manager.IndexToNode(routing.End(v))
         internal_nodes.append(end_node)
+        arrival_times.append(solution.Value(time_dimension.CumulVar(idx)))
 
-        delivery_nodes = [nd for nd in internal_nodes if nd != 0]
+        delivery_nodes = [nd for nd in internal_nodes if nd >= inp.num_depots]
         if not delivery_nodes:
-            continue   # empty vehicle – skip
+            continue  # empty vehicle – skip
 
         result = RouteResult(
             vehicle_id=v + 1,
@@ -232,11 +252,12 @@ def solve_vrp(inp: VRPInput) -> SolverOutput:
             distance_km=round(route_dist_m / _DIST_SCALE, 3),
             time_seconds=round(route_dur_s, 1),
             packages_delivered=sum(inp.demands[nd] for nd in delivery_nodes),
+            arrival_times=arrival_times,
         )
         output.routes.append(result)
 
     # ── Unassigned nodes ──────────────────────────────────────────────────────
-    for node in range(1, n):
+    for node in range(inp.num_depots, n):
         if node not in visited_nodes:
             output.unassigned_internal.append(node)
             output.unassigned_ids.append(inp.location_ids[node])

@@ -1,0 +1,65 @@
+# Monitoring stack for RouteForge: Prometheus + Grafana.
+#
+# Usage:
+#   docker compose -f docker-compose.monitoring.yml up -d
+#
+#   Prometheus: http://localhost:9090
+#   Grafana:    http://localhost:3000  (admin / admin by default, change on first login)
+#
+# Backend metrics are exposed by the app itself at GET /metrics, so the
+# backend container must be reachable from Prometheus. By default this
+# scrapes the backend from docker-compose.yml (network vrp-logistics_default).
+# Override BACKEND_METRICS_URL if the backend runs elsewhere.
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: vrp-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-30d}"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/healthy || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: vrp-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_INSTALL_PLUGINS=
+    volumes:
+      - ./deploy/monitoring/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: vrp-node-exporter
+    ports:
+      - "9100:9100"
+    restart: unless-stopped
+
+volumes:
+  prometheus_data:
+  grafana_data:

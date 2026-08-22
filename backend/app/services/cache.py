@@ -7,10 +7,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Any, Optional
+from contextlib import suppress
+from typing import Any
 
 import numpy as np
-
 import structlog
 from cachetools import LRUCache
 
@@ -19,22 +19,24 @@ logger = structlog.get_logger(__name__)
 # In-process LRU (stores up to 20 matrices – each can be 600×600×8 bytes ≈ 2.9 MB)
 _lru: LRUCache = LRUCache(maxsize=20)
 
-_redis_client: Optional[Any] = None
+_redis_client: Any | None = None
 
 
 def _init_redis(url: str) -> None:
     global _redis_client
     try:
         import redis
+
         _redis_client = redis.from_url(url, decode_responses=False, socket_connect_timeout=2)
         _redis_client.ping()
-        logger.info("redis_connected", url=url)
+        safe_url = url.split("@")[-1] if "@" in url else url
+        logger.info("redis_connected", url=safe_url)
     except Exception as exc:
         logger.warning("redis_unavailable", error=str(exc))
         _redis_client = None
 
 
-def init_cache(redis_url: Optional[str] = None) -> None:
+def init_cache(redis_url: str | None = None) -> None:
     if redis_url:
         _init_redis(redis_url)
 
@@ -55,9 +57,7 @@ def _matrix_key(coords: list[tuple[float, float]], backend: str) -> str:
     return "matrix:" + hashlib.sha256(raw.encode()).hexdigest()
 
 
-def get_matrix(
-    coords: list[tuple[float, float]], backend: str
-) -> Optional[tuple]:
+def get_matrix(coords: list[tuple[float, float]], backend: str) -> tuple | None:
     key = _matrix_key(coords, backend)
 
     # Redis first
@@ -99,48 +99,97 @@ def set_matrix(
     if _redis_client:
         try:
             dist_km, dur_s, matrix_source = value
-            serialized = json.dumps({
-                "dist": dist_km.tolist(),
-                "dur": dur_s.tolist(),
-                "source": matrix_source,
-            })
+            serialized = json.dumps(
+                {
+                    "dist": dist_km.tolist(),
+                    "dur": dur_s.tolist(),
+                    "source": matrix_source,
+                }
+            )
             _redis_client.setex(key, ttl_seconds, serialized)
             logger.info("cache_set_redis", key=key[:24], ttl=ttl_seconds)
         except Exception as exc:
             logger.warning("redis_set_error", error=str(exc))
 
 
-# Simple job-result cache (keyed by job_id)
+# Simple job-result cache (keyed by (company_id, job_id))
 _job_cache: LRUCache = LRUCache(maxsize=200)
 
 
-def get_job(job_id: str) -> Optional[dict]:
-    return _job_cache.get(job_id)
+def _job_key(company_id, job_id: str) -> tuple[str, str]:
+    return str(company_id), job_id
 
 
-def list_jobs(limit: int = 10) -> list[dict]:
+def get_job(company_id, job_id: str) -> dict | None:
+    return _job_cache.get(_job_key(company_id, job_id))
+
+
+def list_jobs(company_id, limit: int = 10) -> list[dict]:
     """Return summaries of the most recent jobs from the in-process cache."""
-    jobs = list(_job_cache.keys())[-limit:]
+    jobs = []
+    for jid in _job_cache:
+        if isinstance(jid, tuple) and str(jid[0]) == str(company_id):
+            jobs.append(jid[1])
+    jobs = jobs[-limit:]
     summaries = []
     for jid in jobs:
-        data = _job_cache.get(jid, {})
-        summaries.append({
-            "job_id": jid,
-            "status": data.get("status"),
-            "total_locations": data.get("total_locations"),
-            "assigned_count": data.get("assigned_count"),
-            "unassigned_count": data.get("unassigned_count"),
-            "vehicles_used": data.get("vehicles_used"),
-            "total_distance_km": data.get("total_distance_km"),
-            "solver_time_seconds": data.get("solver_time_seconds"),
-        })
+        data = _job_cache.get(_job_key(company_id, jid), {})
+        summaries.append(
+            {
+                "job_id": jid,
+                "status": data.get("status"),
+                "total_locations": data.get("total_locations"),
+                "assigned_count": data.get("assigned_count"),
+                "unassigned_count": data.get("unassigned_count"),
+                "vehicles_used": data.get("vehicles_used"),
+                "total_distance_km": data.get("total_distance_km"),
+                "solver_time_seconds": data.get("solver_time_seconds"),
+            }
+        )
     return summaries
 
 
-def set_job(job_id: str, result: dict, ttl_seconds: int = 7200) -> None:
-    _job_cache[job_id] = result
+def set_job(company_id, job_id: str, result: dict, ttl_seconds: int = 7200) -> None:
+    _job_cache[_job_key(company_id, job_id)] = result
     if _redis_client:
-        try:
-            _redis_client.setex(f"job:{job_id}", ttl_seconds, json.dumps(result))
-        except Exception:
-            pass
+        with suppress(Exception):
+            _redis_client.setex(f"job:{company_id}:{job_id}", ttl_seconds, json.dumps(result))
+
+
+# ── Progress tracking (in-flight solver status) ─────────────
+_progress_store: dict[str, dict] = {}
+
+
+def set_progress(run_id: str, stage: str, pct: float, message: str) -> None:
+    _progress_store[run_id] = {"stage": stage, "pct": pct, "message": message}
+    _broadcast_progress(run_id, pct, message)
+
+
+def get_progress(run_id: str) -> dict | None:
+    return _progress_store.get(run_id)
+
+
+def clear_progress(run_id: str) -> None:
+    _progress_store.pop(run_id, None)
+
+
+# ── WebSocket broadcast ──────────────────────────
+
+
+def _broadcast_progress(run_id: str, pct: float, message: str) -> None:
+    """Broadcast progress update to WebSocket subscribers (synchronous shim)."""
+    try:
+        import anyio
+
+        from app.websocket_manager import manager
+
+        anyio.from_thread.run(
+            manager.broadcast,
+            run_id,
+            {"type": "progress", "run_id": run_id, "pct": pct, "message": message},
+        )
+    except Exception as exc:
+        # WebSocket broadcasting is best-effort
+        import structlog
+
+        structlog.get_logger(__name__).debug("ws_broadcast_skipped", error=str(exc))

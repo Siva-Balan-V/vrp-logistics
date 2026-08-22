@@ -1,12 +1,8 @@
 """Tests for cache service."""
 
-import json
-
 import numpy as np
-import pytest
 
-from app.services import cache
-from app.services.cache import get_matrix, set_matrix, _matrix_key
+from app.services.cache import _matrix_key, get_matrix, set_matrix
 
 
 def test_matrix_key_deterministic():
@@ -53,7 +49,7 @@ def test_lru_roundtrip():
 
 def test_lru_miss():
     """Cache miss should return None."""
-    coords = [(51.5074, -0.1278), (48.8566, 2.3522)]
+    coords = [(40.7128, -74.0060), (34.0522, -118.2437)]  # NYC to LA - different coords
     result = get_matrix(coords, "haversine")
     assert result is None
 

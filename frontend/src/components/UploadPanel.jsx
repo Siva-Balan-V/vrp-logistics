@@ -1,33 +1,102 @@
 import { useState, useCallback, useRef } from 'react'
 
-function genSample(n, city) {
+function isNum(v) {
+  return typeof v === 'number' && Number.isFinite(v)
+}
+
+function validatePayload(json) {
+  const errors = []
+  if (!json.deliveries || !Array.isArray(json.deliveries) || json.deliveries.length === 0) {
+    errors.push('"deliveries" must be a non-empty array')
+  } else {
+    json.deliveries.forEach((d, i) => {
+      if (d.id == null) errors.push(`deliveries[${i}]: missing "id"`)
+      if (!isNum(d.lat) || d.lat < -90 || d.lat > 90)
+        errors.push(`deliveries[${i}]: "lat" must be a number in [-90, 90]`)
+      if (!isNum(d.lon) || d.lon < -180 || d.lon > 180)
+        errors.push(`deliveries[${i}]: "lon" must be a number in [-180, 180]`)
+      if (d.demand != null && (!isNum(d.demand) || d.demand < 0))
+        errors.push(`deliveries[${i}]: "demand" must be a non-negative number`)
+    })
+  }
+  const depots = json.depots || (json.depot ? [json.depot] : [])
+  if (!depots.length) {
+    errors.push('"depots" or "depot" is required')
+  } else {
+    depots.forEach((dep, i) => {
+      if (!isNum(dep.lat) || dep.lat < -90 || dep.lat > 90)
+        errors.push(`depot[${i}]: "lat" must be a number in [-90, 90]`)
+      if (!isNum(dep.lon) || dep.lon < -180 || dep.lon > 180)
+        errors.push(`depot[${i}]: "lon" must be a number in [-180, 180]`)
+    })
+  }
+  if (!json.vehicles || typeof json.vehicles !== 'object') {
+    errors.push('"vehicles" must be an object')
+  } else {
+    if (!isNum(json.vehicles.count) || json.vehicles.count <= 0)
+      errors.push('vehicles: "count" must be a positive number')
+    if (!isNum(json.vehicles.capacity) || json.vehicles.capacity <= 0)
+      errors.push('vehicles: "capacity" must be a positive number')
+  }
+  return errors
+}
+
+function genSample(n, city, enableTimeWindows = false, useTwoDepots = false) {
   const centres = {
-    london:   [51.5074, -0.1278],
-    berlin:   [52.520,   13.405],
+    london: [51.5074, -0.1278],
+    berlin: [52.52, 13.405],
     new_york: [40.7128, -74.006],
-    paris:    [48.8566,   2.352],
-    tokyo:    [35.6762, 139.650],
+    paris: [48.8566, 2.352],
+    tokyo: [35.6762, 139.65],
   }
   const [clat, clon] = centres[city] || centres.london
+  const depots = [
+    {
+      id: 0,
+      lat: clat,
+      lon: clon,
+      demand: 0,
+      label: `${city.charAt(0).toUpperCase() + city.slice(1)} Depot A`,
+    },
+  ]
+  if (useTwoDepots) {
+    const offset = 0.04
+    depots.push({
+      id: 1,
+      lat: parseFloat((clat + offset).toFixed(6)),
+      lon: parseFloat((clon + offset).toFixed(6)),
+      demand: 0,
+      label: `${city.charAt(0).toUpperCase() + city.slice(1)} Depot B`,
+    })
+  }
+  const idOffset = useTwoDepots ? 2 : 1
   const deliveries = Array.from({ length: n }, (_, i) => {
     const angle = Math.random() * 2 * Math.PI
     const r = Math.random() * 0.09
-    return {
-      id: i + 1,
+    const delivery = {
+      id: i + idOffset,
       lat: parseFloat((clat + r * Math.cos(angle)).toFixed(6)),
       lon: parseFloat((clon + r * Math.sin(angle) * 1.4).toFixed(6)),
       demand: Math.floor(Math.random() * 4) + 1,
       label: `Stop-${String(i + 1).padStart(3, '0')}`,
+      priority: Math.floor(Math.random() * 5) + 1,
     }
+    if (enableTimeWindows) {
+      const start = Math.floor(Math.random() * 7200)
+      const duration = Math.floor(Math.random() * 3600) + 1800
+      delivery.time_window_start = start
+      delivery.time_window_end = start + duration
+    }
+    return delivery
   })
   return {
-    depot: { id: 0, lat: clat, lon: clon, demand: 0, label: `${city.charAt(0).toUpperCase() + city.slice(1)} Depot` },
+    depots,
     deliveries,
     vehicles: { count: 18, capacity: 50, max_route_duration_seconds: 9000, speed_kmh: 30 },
   }
 }
 
-export default function UploadPanel({ phase, error, onSubmit, onReset }) {
+export default function UploadPanel({ phase, error, onSubmit }) {
   const [mode, setMode] = useState('generate') // 'generate' | 'upload' | 'paste'
   const [city, setCity] = useState('london')
   const [nLocs, setNLocs] = useState(60)
@@ -35,122 +104,214 @@ export default function UploadPanel({ phase, error, onSubmit, onReset }) {
   const [capacity, setCapacity] = useState(50)
   const [speed, setSpeed] = useState(30)
   const [routing, setRouting] = useState('haversine')
+  const [traffic, setTraffic] = useState(false)
+  const [enableTimeWindows, setEnableTimeWindows] = useState(false)
+  const [useTwoDepots, setUseTwoDepots] = useState(false)
+  const [solverTimeLimit, setSolverTimeLimit] = useState(60)
+  const [solverAlgorithm, setSolverAlgorithm] = useState('gls')
   const [pasteText, setPasteText] = useState('')
   const [pasteError, setPasteError] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const fileRef = useRef(null)
 
   const handleGenerate = useCallback(() => {
-    const payload = genSample(nLocs, city)
+    const payload = genSample(nLocs, city, enableTimeWindows, useTwoDepots)
     payload.vehicles.count = nVehicles
     payload.vehicles.capacity = capacity
     payload.vehicles.speed_kmh = speed
+    payload.vehicles.solver_time_limit_seconds = solverTimeLimit
+    payload.vehicles.solver_algorithm = solverAlgorithm
     payload.routing_backend = routing
+    payload.traffic = traffic
     onSubmit(payload)
-  }, [nLocs, city, nVehicles, capacity, speed, routing, onSubmit])
+  }, [
+    nLocs,
+    city,
+    nVehicles,
+    capacity,
+    speed,
+    routing,
+    traffic,
+    enableTimeWindows,
+    useTwoDepots,
+    solverTimeLimit,
+    solverAlgorithm,
+    onSubmit,
+  ])
 
-  const handleFileUpload = useCallback((file) => {
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      try {
-        const json = JSON.parse(e.target.result)
-        json.routing_backend = routing
-        onSubmit(json)
-      } catch {
-        setPasteError('Invalid JSON file')
+  const handleFileUpload = useCallback(
+    (file) => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        try {
+          const json = JSON.parse(e.target.result)
+          const errors = validatePayload(json)
+          if (errors.length) {
+            setPasteError(errors.join('; '))
+            return
+          }
+          json.routing_backend = routing
+          json.traffic = traffic
+          onSubmit(json)
+        } catch {
+          setPasteError('Invalid JSON file')
+        }
       }
-    }
-    reader.readAsText(file)
-  }, [routing, onSubmit])
+      reader.readAsText(file)
+    },
+    [routing, traffic, onSubmit],
+  )
 
   const handlePasteSubmit = useCallback(() => {
     try {
       const json = JSON.parse(pasteText)
+      const errors = validatePayload(json)
+      if (errors.length) {
+        setPasteError(errors.join('; '))
+        return
+      }
       json.routing_backend = routing
+      json.traffic = traffic
       onSubmit(json)
     } catch {
       setPasteError('Invalid JSON – check format')
     }
-  }, [pasteText, routing, onSubmit])
+  }, [pasteText, routing, traffic, onSubmit])
 
-  const onDrop = useCallback((e) => {
-    e.preventDefault()
-    setDragOver(false)
-    const file = e.dataTransfer.files[0]
-    if (file) handleFileUpload(file)
-  }, [handleFileUpload])
+  const onDrop = useCallback(
+    (e) => {
+      e.preventDefault()
+      setDragOver(false)
+      const file = e.dataTransfer.files[0]
+      if (file) handleFileUpload(file)
+    },
+    [handleFileUpload],
+  )
 
   const disabled = phase === 'solving'
 
   return (
-    <div style={{
-      display: 'flex', flexDirection: 'column', alignItems: 'center',
-      justifyContent: 'center', minHeight: '100%',
-      background: 'var(--bg)', padding: '40px 24px',
-    }}>
-      <div style={{
-        width: '100%', maxWidth: 560,
-        animation: 'fadeUp 0.4s ease both',
-      }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100%',
+        background: 'var(--bg)',
+        padding: '40px 24px',
+      }}
+    >
+      <div
+        style={{
+          width: '100%',
+          maxWidth: 560,
+          animation: 'fadeUp 0.4s ease both',
+        }}
+      >
         {/* Title */}
         <div style={{ marginBottom: 32, textAlign: 'center' }}>
-          <h1 style={{
-            fontFamily: 'var(--display)', fontSize: 36, fontWeight: 800,
-            letterSpacing: '-0.04em', lineHeight: 1.1, marginBottom: 10
-          }}>
-            Last-Mile<br />
+          <h1
+            style={{
+              fontFamily: 'var(--display)',
+              fontSize: 36,
+              fontWeight: 800,
+              letterSpacing: '-0.04em',
+              lineHeight: 1.1,
+              marginBottom: 10,
+            }}
+          >
+            Last-Mile
+            <br />
             <span style={{ color: 'var(--accent)' }}>Route Optimizer</span>
           </h1>
           <p style={{ color: 'var(--text-2)', fontSize: 14, lineHeight: 1.6 }}>
-            Solve 600+ delivery locations across 18+ vehicles<br />
+            Solve 600+ delivery locations across 18+ vehicles
+            <br />
             using Google OR-Tools with real road-network distances.
           </p>
         </div>
 
         {/* Mode tabs */}
-        <div style={{
-          display: 'flex', background: 'var(--bg-2)',
-          borderRadius: 'var(--radius)', padding: 3,
-          marginBottom: 24, border: '1px solid var(--border)',
-        }}>
-          {[['generate','⚡ Generate'], ['upload','📁 Upload JSON'], ['paste','✏️ Paste JSON']].map(([m, label]) => (
-            <button key={m} onClick={() => setMode(m)} style={{
-              flex: 1, padding: '8px 0', fontSize: 12, fontWeight: 500,
-              borderRadius: 4, transition: 'all 0.15s',
-              background: mode === m ? 'var(--bg-3)' : 'transparent',
-              color: mode === m ? 'var(--text)' : 'var(--text-2)',
-              border: mode === m ? '1px solid var(--border-hover)' : '1px solid transparent',
-            }}>
+        <div
+          role="tablist"
+          aria-label="Input mode"
+          style={{
+            display: 'flex',
+            background: 'var(--bg-2)',
+            borderRadius: 'var(--radius)',
+            padding: 3,
+            marginBottom: 24,
+            border: '1px solid var(--border)',
+          }}
+        >
+          {[
+            ['generate', '⚡ Generate'],
+            ['upload', '📁 Upload JSON'],
+            ['paste', '✏️ Paste JSON'],
+          ].map(([m, label]) => (
+            <button
+              key={m}
+              role="tab"
+              aria-selected={mode === m}
+              onClick={() => setMode(m)}
+              style={{
+                flex: 1,
+                padding: '8px 0',
+                fontSize: 12,
+                fontWeight: 500,
+                borderRadius: 4,
+                transition: 'all 0.15s',
+                background: mode === m ? 'var(--bg-3)' : 'transparent',
+                color: mode === m ? 'var(--text)' : 'var(--text-2)',
+                border: mode === m ? '1px solid var(--border-hover)' : '1px solid transparent',
+              }}
+            >
               {label}
             </button>
           ))}
         </div>
 
         {/* Card */}
-        <div style={{
-          background: 'var(--bg-1)', border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-lg)', padding: 24, marginBottom: 20,
-        }}>
+        <div
+          style={{
+            background: 'var(--bg-1)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            padding: 24,
+            marginBottom: 20,
+          }}
+        >
           {mode === 'generate' && (
             <GenerateForm
-              city={city} setCity={setCity}
-              nLocs={nLocs} setNLocs={setNLocs}
-              nVehicles={nVehicles} setNVehicles={setNVehicles}
-              capacity={capacity} setCapacity={setCapacity}
-              speed={speed} setSpeed={setSpeed}
+              city={city}
+              setCity={setCity}
+              nLocs={nLocs}
+              setNLocs={setNLocs}
+              nVehicles={nVehicles}
+              setNVehicles={setNVehicles}
+              capacity={capacity}
+              setCapacity={setCapacity}
+              speed={speed}
+              setSpeed={setSpeed}
             />
           )}
 
           {mode === 'upload' && (
             <div
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+              onDragOver={(e) => {
+                e.preventDefault()
+                setDragOver(true)
+              }}
               onDragLeave={() => setDragOver(false)}
               onDrop={onDrop}
               onClick={() => fileRef.current?.click()}
               style={{
                 border: `2px dashed ${dragOver ? 'var(--accent)' : 'var(--border)'}`,
-                borderRadius: 'var(--radius)', padding: '40px 20px',
-                textAlign: 'center', cursor: 'pointer',
+                borderRadius: 'var(--radius)',
+                padding: '40px 20px',
+                textAlign: 'center',
+                cursor: 'pointer',
                 background: dragOver ? 'var(--accent-dim)' : 'var(--bg-2)',
                 transition: 'all 0.15s',
               }}
@@ -159,35 +320,70 @@ export default function UploadPanel({ phase, error, onSubmit, onReset }) {
               <p style={{ color: 'var(--text-2)', fontSize: 13 }}>
                 Drop a JSON file or <span style={{ color: 'var(--accent)' }}>click to browse</span>
               </p>
-              <p style={{ color: 'var(--text-3)', fontSize: 11, marginTop: 6, fontFamily: 'var(--mono)' }}>
+              <p
+                style={{
+                  color: 'var(--text-3)',
+                  fontSize: 11,
+                  marginTop: 6,
+                  fontFamily: 'var(--mono)',
+                }}
+              >
                 Format: {`{ depot, deliveries[], vehicles }`}
               </p>
-              <input ref={fileRef} type="file" accept=".json"
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".json"
                 style={{ display: 'none' }}
-                onChange={(e) => { if (e.target.files[0]) handleFileUpload(e.target.files[0]) }}
+                onChange={(e) => {
+                  if (e.target.files[0]) handleFileUpload(e.target.files[0])
+                }}
               />
             </div>
           )}
 
           {mode === 'paste' && (
             <div>
-              <label style={{ fontSize: 12, color: 'var(--text-2)', fontFamily: 'var(--mono)', display: 'block', marginBottom: 8 }}>
+              <label
+                style={{
+                  fontSize: 12,
+                  color: 'var(--text-2)',
+                  fontFamily: 'var(--mono)',
+                  display: 'block',
+                  marginBottom: 8,
+                }}
+              >
                 Paste OptimizeRequest JSON:
               </label>
               <textarea
                 rows={10}
                 value={pasteText}
-                onChange={(e) => { setPasteText(e.target.value); setPasteError('') }}
+                onChange={(e) => {
+                  setPasteText(e.target.value)
+                  setPasteError('')
+                }}
                 placeholder={'{\n  "depot": {...},\n  "deliveries": [...],\n  "vehicles": {...}\n}'}
                 style={{
-                  width: '100%', fontFamily: 'var(--mono)', fontSize: 12,
-                  resize: 'vertical', background: 'var(--bg-2)',
+                  width: '100%',
+                  fontFamily: 'var(--mono)',
+                  fontSize: 12,
+                  resize: 'vertical',
+                  background: 'var(--bg-2)',
                   border: `1px solid ${pasteError ? 'var(--red)' : 'var(--border)'}`,
-                  borderRadius: 'var(--radius)', padding: 12, color: 'var(--text)'
+                  borderRadius: 'var(--radius)',
+                  padding: 12,
+                  color: 'var(--text)',
                 }}
               />
               {pasteError && (
-                <p style={{ color: 'var(--red)', fontSize: 11, marginTop: 4, fontFamily: 'var(--mono)' }}>
+                <p
+                  style={{
+                    color: 'var(--red)',
+                    fontSize: 11,
+                    marginTop: 4,
+                    fontFamily: 'var(--mono)',
+                  }}
+                >
                   ✗ {pasteError}
                 </p>
               )}
@@ -196,20 +392,51 @@ export default function UploadPanel({ phase, error, onSubmit, onReset }) {
         </div>
 
         {/* Routing backend */}
-        <div style={{
-          background: 'var(--bg-1)', border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-lg)', padding: '16px 20px',
-          marginBottom: 20, display: 'flex', alignItems: 'center',
-          gap: 16, flexWrap: 'wrap'
-        }}>
-          <span style={{ fontSize: 12, color: 'var(--text-2)', fontFamily: 'var(--mono)', flex: '0 0 auto' }}>
+        <div
+          style={{
+            background: 'var(--bg-1)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '16px 20px',
+            marginBottom: 20,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 16,
+            flexWrap: 'wrap',
+          }}
+        >
+          <span
+            style={{
+              fontSize: 12,
+              color: 'var(--text-2)',
+              fontFamily: 'var(--mono)',
+              flex: '0 0 auto',
+            }}
+          >
             Distance backend:
           </span>
-          {[['haversine','Haversine (fast)'],['osrm','OSRM (road)'],['ors','ORS (road+key)']].map(([v, label]) => (
-            <label key={v} style={{ display: 'flex', alignItems: 'center', gap: 6,
-              cursor: 'pointer', fontSize: 12, color: routing === v ? 'var(--accent)' : 'var(--text-2)' }}>
-              <input type="radio" name="routing" value={v}
-                checked={routing === v} onChange={() => setRouting(v)}
+          {[
+            ['haversine', 'Haversine (fast)'],
+            ['osrm', 'OSRM (road)'],
+            ['ors', 'ORS (road+key)'],
+          ].map(([v, label]) => (
+            <label
+              key={v}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                cursor: 'pointer',
+                fontSize: 12,
+                color: routing === v ? 'var(--accent)' : 'var(--text-2)',
+              }}
+            >
+              <input
+                type="radio"
+                name="routing"
+                value={v}
+                checked={routing === v}
+                onChange={() => setRouting(v)}
                 style={{ accentColor: 'var(--accent)' }}
               />
               {label}
@@ -217,26 +444,214 @@ export default function UploadPanel({ phase, error, onSubmit, onReset }) {
           ))}
         </div>
 
+        {/* Traffic-aware routing (ORS only) */}
+        {routing === 'ors' && (
+          <div
+            style={{
+              background: 'var(--bg-1)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '10px 20px',
+              marginBottom: 16,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+            }}
+          >
+            <input
+              type="checkbox"
+              id="traffic"
+              checked={traffic}
+              onChange={(e) => setTraffic(e.target.checked)}
+              style={{ accentColor: 'var(--accent)' }}
+            />
+            <label htmlFor="traffic" style={{ fontSize: 13, cursor: 'pointer' }}>
+              Real-time traffic-aware routing
+            </label>
+          </div>
+        )}
+
+        {/* Solver configuration */}
+        <div
+          style={{
+            background: 'var(--bg-1)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '16px 20px',
+            marginBottom: 20,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              fontFamily: 'var(--mono)',
+              color: 'var(--text-3)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              marginBottom: 12,
+            }}
+          >
+            Solver Configuration
+          </div>
+          <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontSize: 12,
+                color: 'var(--text-2)',
+                fontFamily: 'var(--mono)',
+                cursor: 'pointer',
+              }}
+            >
+              <span>Time limit:</span>
+              <select
+                value={solverTimeLimit}
+                onChange={(e) => setSolverTimeLimit(+e.target.value)}
+                style={{ fontSize: 11, padding: '4px 8px', minWidth: 80 }}
+              >
+                <option value={15}>15 s</option>
+                <option value={30}>30 s</option>
+                <option value={60}>60 s</option>
+                <option value={120}>120 s</option>
+                <option value={300}>300 s</option>
+              </select>
+            </label>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontSize: 12,
+                color: 'var(--text-2)',
+                fontFamily: 'var(--mono)',
+                cursor: 'pointer',
+              }}
+            >
+              <span>Algorithm:</span>
+              <select
+                value={solverAlgorithm}
+                onChange={(e) => setSolverAlgorithm(e.target.value)}
+                style={{ fontSize: 11, padding: '4px 8px', minWidth: 100 }}
+              >
+                <option value="gls">Guided Local Search</option>
+                <option value="greedy">Greedy (fast)</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        {/* Time windows toggle */}
+        <div
+          style={{
+            background: 'var(--bg-1)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '16px 20px',
+            marginBottom: 20,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+          }}
+        >
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              cursor: 'pointer',
+              fontSize: 12,
+              color: 'var(--text-2)',
+              fontFamily: 'var(--mono)',
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={enableTimeWindows}
+              onChange={(e) => setEnableTimeWindows(e.target.checked)}
+              style={{ accentColor: 'var(--accent)' }}
+            />
+            Enable time windows (VRPTW)
+          </label>
+          <span style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
+            Each stop gets a random delivery window
+          </span>
+        </div>
+
+        {/* Multi-depot toggle */}
+        <div
+          style={{
+            background: 'var(--bg-1)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '16px 20px',
+            marginBottom: 20,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+          }}
+        >
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              cursor: 'pointer',
+              fontSize: 12,
+              color: 'var(--text-2)',
+              fontFamily: 'var(--mono)',
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={useTwoDepots}
+              onChange={(e) => setUseTwoDepots(e.target.checked)}
+              style={{ accentColor: 'var(--accent)' }}
+            />
+            Use 2 depots (multi-depot)
+          </label>
+          <span style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
+            Vehicles assigned to nearest depot
+          </span>
+        </div>
+
         {/* Error */}
         {error && (
-          <div style={{
-            background: 'var(--red-dim)', border: '1px solid var(--red)',
-            borderRadius: 'var(--radius)', padding: '10px 14px',
-            color: 'var(--red)', fontSize: 13, fontFamily: 'var(--mono)',
-            marginBottom: 16
-          }}>✗ {error}</div>
+          <div
+            style={{
+              background: 'var(--red-dim)',
+              border: '1px solid var(--red)',
+              borderRadius: 'var(--radius)',
+              padding: '10px 14px',
+              color: 'var(--red)',
+              fontSize: 13,
+              fontFamily: 'var(--mono)',
+              marginBottom: 16,
+            }}
+          >
+            ✗ {error}
+          </div>
         )}
 
         {/* Submit */}
         <button
+          aria-label="Start optimization"
           disabled={disabled}
-          onClick={mode === 'generate' ? handleGenerate : mode === 'paste' ? handlePasteSubmit : undefined}
+          onClick={
+            mode === 'generate' ? handleGenerate : mode === 'paste' ? handlePasteSubmit : undefined
+          }
           style={{
-            width: '100%', padding: '14px 0', fontSize: 15, fontWeight: 700,
-            fontFamily: 'var(--display)', letterSpacing: '-0.01em',
+            width: '100%',
+            padding: '14px 0',
+            fontSize: 15,
+            fontWeight: 700,
+            fontFamily: 'var(--display)',
+            letterSpacing: '-0.01em',
             background: disabled ? 'var(--bg-3)' : 'var(--accent)',
             color: disabled ? 'var(--text-3)' : '#000',
-            border: 'none', borderRadius: 'var(--radius-lg)',
+            border: 'none',
+            borderRadius: 'var(--radius-lg)',
             cursor: disabled ? 'not-allowed' : 'pointer',
             transition: 'all 0.2s',
             boxShadow: disabled ? 'none' : 'var(--shadow-accent)',
@@ -252,7 +667,15 @@ export default function UploadPanel({ phase, error, onSubmit, onReset }) {
 function Field({ label, children }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <label style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+      <label
+        style={{
+          fontSize: 11,
+          fontFamily: 'var(--mono)',
+          color: 'var(--text-3)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+        }}
+      >
         {label}
       </label>
       {children}
@@ -260,51 +683,90 @@ function Field({ label, children }) {
   )
 }
 
-function GenerateForm({ city, setCity, nLocs, setNLocs, nVehicles, setNVehicles, capacity, setCapacity, speed, setSpeed }) {
+function GenerateForm({
+  city,
+  setCity,
+  nLocs,
+  setNLocs,
+  nVehicles,
+  setNVehicles,
+  capacity,
+  setCapacity,
+  speed,
+  setSpeed,
+}) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
       <Field label="City">
         <select value={city} onChange={(e) => setCity(e.target.value)} style={{ width: '100%' }}>
-          {['london','berlin','new_york','paris','tokyo'].map(c => (
-            <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1).replace('_',' ')}</option>
+          {['london', 'berlin', 'new_york', 'paris', 'tokyo'].map((c) => (
+            <option key={c} value={c}>
+              {c.charAt(0).toUpperCase() + c.slice(1).replace('_', ' ')}
+            </option>
           ))}
         </select>
       </Field>
 
       <Field label={`Deliveries: ${nLocs}`}>
-        <input type="range" min={10} max={600} step={10}
-          value={nLocs} onChange={(e) => setNLocs(+e.target.value)}
+        <input
+          type="range"
+          min={10}
+          max={600}
+          step={10}
+          value={nLocs}
+          onChange={(e) => setNLocs(+e.target.value)}
           style={{ accentColor: 'var(--accent)', width: '100%', cursor: 'pointer' }}
         />
       </Field>
 
       <Field label={`Vehicles: ${nVehicles}`}>
-        <input type="range" min={1} max={50} step={1}
-          value={nVehicles} onChange={(e) => setNVehicles(+e.target.value)}
+        <input
+          type="range"
+          min={1}
+          max={50}
+          step={1}
+          value={nVehicles}
+          onChange={(e) => setNVehicles(+e.target.value)}
           style={{ accentColor: 'var(--accent)', width: '100%', cursor: 'pointer' }}
         />
       </Field>
 
       <Field label={`Capacity: ${capacity} pkgs`}>
-        <input type="range" min={5} max={200} step={5}
-          value={capacity} onChange={(e) => setCapacity(+e.target.value)}
+        <input
+          type="range"
+          min={5}
+          max={200}
+          step={5}
+          value={capacity}
+          onChange={(e) => setCapacity(+e.target.value)}
           style={{ accentColor: 'var(--accent)', width: '100%', cursor: 'pointer' }}
         />
       </Field>
 
       <Field label={`Speed: ${speed} km/h`}>
-        <input type="range" min={10} max={80} step={5}
-          value={speed} onChange={(e) => setSpeed(+e.target.value)}
+        <input
+          type="range"
+          min={10}
+          max={80}
+          step={5}
+          value={speed}
+          onChange={(e) => setSpeed(+e.target.value)}
           style={{ accentColor: 'var(--accent)', width: '100%', cursor: 'pointer' }}
         />
       </Field>
 
       <Field label="Max route: 2.5 h">
-        <div style={{
-          background: 'var(--bg-3)', border: '1px solid var(--border)',
-          borderRadius: 'var(--radius)', padding: '8px 12px',
-          fontSize: 13, fontFamily: 'var(--mono)', color: 'var(--text-2)'
-        }}>
+        <div
+          style={{
+            background: 'var(--bg-3)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            padding: '8px 12px',
+            fontSize: 13,
+            fontFamily: 'var(--mono)',
+            color: 'var(--text-2)',
+          }}
+        >
           9000 s (fixed)
         </div>
       </Field>

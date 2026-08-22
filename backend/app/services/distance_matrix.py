@@ -11,7 +11,6 @@ from __future__ import annotations
 import asyncio
 import math
 import time
-from typing import Optional
 
 import httpx
 import numpy as np
@@ -24,22 +23,68 @@ settings = get_settings()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# RESPONSE VALIDATION HELPERS
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _validate_matrix_response(
+    durations: list[list[float]] | None,
+    distances: list[list[float]] | None,
+    expected_rows: int,
+    expected_cols: int,
+    source: str,
+) -> None:
+    if not isinstance(durations, list) or not isinstance(distances, list):
+        raise ValueError(f"{source} response: durations and distances must be lists")
+    if len(durations) != expected_rows or len(distances) != expected_rows:
+        raise ValueError(
+            f"{source} response: expected {expected_rows} rows, "
+            f"got durations={len(durations)} distances={len(distances)}"
+        )
+    for ri in range(expected_rows):
+        if not isinstance(durations[ri], list) or not isinstance(distances[ri], list):
+            raise ValueError(f"{source} response: row {ri} is not a list")
+        if len(durations[ri]) != expected_cols or len(distances[ri]) != expected_cols:
+            raise ValueError(
+                f"{source} response: row {ri} expected {expected_cols} cols, "
+                f"got durations={len(durations[ri])} distances={len(distances[ri])}"
+            )
+        for cj in range(expected_cols):
+            dur_val = durations[ri][cj]
+            dist_val = distances[ri][cj]
+            if dur_val is not None and not isinstance(dur_val, (int, float)):
+                raise ValueError(
+                    f"{source} response: durations[{ri}][{cj}] is {type(dur_val).__name__}, expected number"
+                )
+            if dist_val is not None and not isinstance(dist_val, (int, float)):
+                raise ValueError(
+                    f"{source} response: distances[{ri}][{cj}] is {type(dist_val).__name__}, expected number"
+                )
+            if dur_val is not None and (dur_val < 0 or math.isnan(dur_val) or math.isinf(dur_val)):
+                raise ValueError(f"{source} response: durations[{ri}][{cj}] is invalid ({dur_val})")
+            if dist_val is not None and (dist_val < 0 or math.isnan(dist_val) or math.isinf(dist_val)):
+                raise ValueError(f"{source} response: distances[{ri}][{cj}] is invalid ({dist_val})")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # HAVERSINE HELPER
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Return great-circle distance in kilometres."""
-    R = 6371.0
+    r = 6371.0
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
     dphi = math.radians(lat2 - lat1)
     dlam = math.radians(lon2 - lon1)
     a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlam / 2) ** 2
-    return 2 * R * math.asin(math.sqrt(a))
+    return 2 * r * math.asin(math.sqrt(a))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HAVERSINE MATRIX (no API calls)
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def build_haversine_matrix(
     coords: list[tuple[float, float]],
@@ -50,7 +95,6 @@ def build_haversine_matrix(
     Applies a road-network correction factor of 1.35 over straight-line distance.
     Uses vectorized NumPy operations for O(n) performance vs O(n^2) Python loops.
     """
-    n = len(coords)
     lats = np.radians(np.array([c[0] for c in coords]))
     lons = np.radians(np.array([c[1] for c in coords]))
 
@@ -69,6 +113,7 @@ def build_haversine_matrix(
 # ─────────────────────────────────────────────────────────────────────────────
 # OSRM TABLE (batch, free public endpoint)
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 async def _osrm_table_chunk(
     client: httpx.AsyncClient,
@@ -93,6 +138,7 @@ async def _osrm_table_chunk(
     distances = data.get("distances")
     if not durations or not distances:
         raise ValueError("OSRM response missing durations or distances")
+    _validate_matrix_response(durations, distances, len(sources), len(destinations), "OSRM")
     return durations, distances
 
 
@@ -117,9 +163,7 @@ async def build_osrm_matrix(
         async with httpx.AsyncClient() as client:
             if n <= batch_size:
                 all_idx = list(range(n))
-                durations, distances = await _osrm_table_chunk(
-                    client, coords, all_idx, all_idx, base_url
-                )
+                durations, distances = await _osrm_table_chunk(client, coords, all_idx, all_idx, base_url)
                 for i in range(n):
                     for j in range(n):
                         duration_m[i][j] = durations[i][j] if durations[i][j] else 0.0
@@ -132,13 +176,11 @@ async def build_osrm_matrix(
                     s_end = min(s_start + batch_size, n)
                     sources = list(range(s_start, s_end))
                     destinations = list(range(n))
-                    tasks.append(
-                        _osrm_table_chunk(client, coords, sources, destinations, base_url)
-                    )
+                    tasks.append(_osrm_table_chunk(client, coords, sources, destinations, base_url))
                     chunk_meta.append((s_start, s_end))
 
                 results = await asyncio.gather(*tasks, return_exceptions=True)
-                for (s_start, s_end), result in zip(chunk_meta, results):
+                for (s_start, s_end), result in zip(chunk_meta, results, strict=False):
                     if isinstance(result, Exception):
                         logger.warning("osrm_chunk_failed", error=str(result))
                         # Fill with haversine for this chunk
@@ -166,11 +208,13 @@ async def build_osrm_matrix(
 # ORS MATRIX (OpenRouteService – needs API key)
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 async def build_ors_matrix(
     coords: list[tuple[float, float]],
     api_key: str,
     speed_kmh: float = 30.0,
     batch_size: int = 50,
+    traffic: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Build matrices using ORS /v2/matrix/driving-car endpoint.
@@ -180,7 +224,7 @@ async def build_ors_matrix(
     duration_m = np.zeros((n, n), dtype=np.float64)
     distance_m = np.zeros((n, n), dtype=np.float64)
 
-    ors_coords = [[lon, lat] for lat, lon in coords]   # ORS uses [lon, lat]
+    ors_coords = [[lon, lat] for lat, lon in coords]  # ORS uses [lon, lat]
     url = "https://api.openrouteservice.org/v2/matrix/driving-car"
     headers = {"Authorization": api_key, "Content-Type": "application/json"}
 
@@ -195,6 +239,8 @@ async def build_ors_matrix(
                 "metrics": ["duration", "distance"],
                 "units": "km",
             }
+            if traffic:
+                payload["traffic"] = True
             try:
                 resp = await client.post(url, json=payload, headers=headers, timeout=60.0)
                 resp.raise_for_status()
@@ -203,6 +249,7 @@ async def build_ors_matrix(
                 distances = data.get("distances")
                 if not durations or not distances:
                     raise ValueError("ORS response missing durations or distances")
+                _validate_matrix_response(durations, distances, s_end - s_start, n, "ORS")
                 for ri, i in enumerate(range(s_start, s_end)):
                     for j in range(n):
                         duration_m[i][j] = durations[ri][j] or 0.0
@@ -224,10 +271,12 @@ async def build_ors_matrix(
 # UNIFIED ENTRY POINT
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 async def build_matrix(
     coords: list[tuple[float, float]],
-    backend: Optional[str] = None,
+    backend: str | None = None,
     speed_kmh: float = 30.0,
+    traffic: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, str]:
     """
     Returns (distance_km_matrix, duration_seconds_matrix, backend_used).
@@ -236,12 +285,14 @@ async def build_matrix(
       1. Explicit `backend` param  →  "osrm" | "ors" | "haversine"
       2. settings.ROUTING_BACKEND
       3. Auto-detect based on available keys
+
+    When `traffic=True`, the ORS backend factors in live traffic data (requires ORS_API_KEY).
     """
     t0 = time.perf_counter()
     effective = backend or settings.ROUTING_BACKEND
 
     if effective == "ors" and settings.ORS_API_KEY:
-        dist, dur = await build_ors_matrix(coords, settings.ORS_API_KEY, speed_kmh)
+        dist, dur = await build_ors_matrix(coords, settings.ORS_API_KEY, speed_kmh, traffic=traffic)
         source = "ors"
     elif effective == "osrm":
         dist, dur = await build_osrm_matrix(coords, speed_kmh)

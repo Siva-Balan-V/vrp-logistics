@@ -3,6 +3,45 @@
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- Companies
+CREATE TABLE IF NOT EXISTS companies (
+    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name                VARCHAR(200) NOT NULL,
+    plan                VARCHAR(50) NOT NULL DEFAULT 'free',
+    stripe_customer_id  VARCHAR(255),
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Users
+CREATE TABLE IF NOT EXISTS users (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    email           VARCHAR(255) NOT NULL UNIQUE,
+    password_hash   VARCHAR(255) NOT NULL,
+    company_id      UUID NOT NULL REFERENCES companies(id),
+    role            VARCHAR(50) NOT NULL DEFAULT 'member',
+    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_users_email ON users(email);
+
+-- API Keys (B2B integrations)
+CREATE TABLE IF NOT EXISTS api_keys (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    company_id      UUID NOT NULL REFERENCES companies(id),
+    name            VARCHAR(100) NOT NULL,
+    key_hash        VARCHAR(64) NOT NULL UNIQUE,
+    prefix          VARCHAR(12) NOT NULL,
+    permissions     JSONB NOT NULL DEFAULT '["optimize", "read"]',
+    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+    expires_at      TIMESTAMPTZ,
+    last_used_at    TIMESTAMPTZ,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_api_keys_company ON api_keys(company_id);
+CREATE INDEX idx_api_keys_key_hash ON api_keys(key_hash);
+
 -- Optimization Jobs
 CREATE TABLE IF NOT EXISTS optimization_jobs (
     job_id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
