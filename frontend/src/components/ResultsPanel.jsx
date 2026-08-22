@@ -236,7 +236,13 @@ function RouteList({ vehicles, selectedVehicle, onSelect }) {
                 </span>
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: 8 }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))',
+                gap: 8,
+              }}
+            >
               <Metric label="Distance" value={`${v.distance_km} km`} />
               <Metric label="Time" value={`${v.time_minutes} min`} />
               <Metric label="Packages" value={v.packages_delivered} />
