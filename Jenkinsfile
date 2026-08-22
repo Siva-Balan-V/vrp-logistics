@@ -93,8 +93,8 @@ pipeline {
         stage('Deploy') {
             steps {
                 sh '''
-                    docker compose pull
-                    docker compose up -d --force-recreate
+                    docker rm -f vrp-backend vrp-frontend vrp-postgres vrp-redis 2>/dev/null || true
+                    docker compose up -d --build
                     sleep 5
                     curl -sf http://localhost:8000/health || echo "Health check failed"
                 '''
