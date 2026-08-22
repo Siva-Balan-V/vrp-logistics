@@ -10,6 +10,7 @@ PLANS: dict[str, dict[str, Any]] = {
     "free": {
         "name": "Free",
         "price_monthly": 0,
+        "price_monthly_inr": 0,
         "max_optimizations_per_month": 5,
         "max_locations_per_job": 50,
         "allowed_backends": ["haversine"],
@@ -20,7 +21,7 @@ PLANS: dict[str, dict[str, Any]] = {
     "pro": {
         "name": "Pro",
         "price_monthly": 4900,  # $49.00 in cents
-        "stripe_price_id": "",  # set via env or Stripe dashboard
+        "price_monthly_inr": 4900,  # ₹49.00 in paise
         "max_optimizations_per_month": 1000,
         "max_locations_per_job": 500,
         "allowed_backends": ["haversine", "osrm", "ors"],
@@ -31,7 +32,7 @@ PLANS: dict[str, dict[str, Any]] = {
     "enterprise": {
         "name": "Enterprise",
         "price_monthly": 19900,  # $199.00 in cents
-        "stripe_price_id": "",
+        "price_monthly_inr": 19900,  # ₹199.00 in paise
         "max_optimizations_per_month": 10000,
         "max_locations_per_job": 5000,
         "allowed_backends": ["haversine", "osrm", "ors"],
