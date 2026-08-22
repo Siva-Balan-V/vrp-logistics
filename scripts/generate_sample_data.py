@@ -19,25 +19,25 @@ import json
 import math
 import random
 from dataclasses import asdict, dataclass
-from typing import Optional
 
 # ─────────────────────────────────────────────
 # PRESET CITY CENTRES
 # ─────────────────────────────────────────────
 CITIES = {
-    "london":    (51.5074, -0.1278),
-    "new_york":  (40.7128, -74.0060),
-    "berlin":    (52.5200,  13.4050),
-    "tokyo":     (35.6762, 139.6503),
-    "mumbai":    (19.0760,  72.8777),
-    "sydney":    (-33.8688, 151.2093),
-    "paris":     (48.8566,   2.3522),
-    "singapore": (1.3521,  103.8198),
+    "london": (51.5074, -0.1278),
+    "new_york": (40.7128, -74.0060),
+    "berlin": (52.5200, 13.4050),
+    "tokyo": (35.6762, 139.6503),
+    "mumbai": (19.0760, 72.8777),
+    "sydney": (-33.8688, 151.2093),
+    "paris": (48.8566, 2.3522),
+    "singapore": (1.3521, 103.8198),
 }
 
 # ─────────────────────────────────────────────
 # DATA CLASSES
 # ─────────────────────────────────────────────
+
 
 @dataclass
 class DeliveryLocation:
@@ -60,10 +60,11 @@ class SampleDataset:
 # HELPERS
 # ─────────────────────────────────────────────
 
+
 def _rand_offset(radius_km: float) -> tuple[float, float]:
     """Random offset within a circle of given radius (km)."""
     angle = random.uniform(0, 2 * math.pi)
-    r = radius_km * math.sqrt(random.random())   # uniform in circle
+    r = radius_km * math.sqrt(random.random())  # uniform in circle
     # 1 degree lat ≈ 111 km
     dlat = r * math.cos(angle) / 111.0
     dlon = r * math.sin(angle) / (111.0 * math.cos(math.radians(0.1)))
@@ -81,13 +82,15 @@ def generate_cluster(
     locs = []
     for i in range(n):
         dlat, dlon = _rand_offset(radius_km)
-        locs.append(DeliveryLocation(
-            id=start_id + i,
-            lat=round(centre_lat + dlat, 6),
-            lon=round(centre_lon + dlon, 6),
-            demand=random.randint(1, 5),
-            label=f"{zone_label}-{i+1:03d}",
-        ))
+        locs.append(
+            DeliveryLocation(
+                id=start_id + i,
+                lat=round(centre_lat + dlat, 6),
+                lon=round(centre_lon + dlon, 6),
+                demand=random.randint(1, 5),
+                label=f"{zone_label}-{i + 1:03d}",
+            )
+        )
     return locs
 
 
@@ -106,13 +109,13 @@ def generate_dataset(
     # Cluster configuration – mimics real urban delivery patterns
     cluster_specs = [
         # (weight %, radius_km, zone_label)
-        (0.30, 2.0,  "CityCore"),       # dense centre
-        (0.20, 4.0,  "MidRing"),        # mid-ring
-        (0.15, 6.0,  "InnerSuburb"),
-        (0.15, 8.0,  "OuterSuburb"),
+        (0.30, 2.0, "CityCore"),  # dense centre
+        (0.20, 4.0, "MidRing"),  # mid-ring
+        (0.15, 6.0, "InnerSuburb"),
+        (0.15, 8.0, "OuterSuburb"),
         (0.10, 12.0, "Peripheral"),
         (0.05, 15.0, "Outlier"),
-        (0.05, 3.0,  "IndustrialPark"), # secondary cluster shifted
+        (0.05, 3.0, "IndustrialPark"),  # secondary cluster shifted
     ]
 
     deliveries: list[DeliveryLocation] = []
@@ -132,13 +135,15 @@ def generate_dataset(
     # Fill remainder
     while len(deliveries) < n_deliveries:
         dlat, dlon = _rand_offset(10.0)
-        deliveries.append(DeliveryLocation(
-            id=current_id,
-            lat=round(depot_lat + dlat, 6),
-            lon=round(depot_lon + dlon, 6),
-            demand=random.randint(1, 3),
-            label=f"Extra-{current_id:04d}",
-        ))
+        deliveries.append(
+            DeliveryLocation(
+                id=current_id,
+                lat=round(depot_lat + dlat, 6),
+                lon=round(depot_lon + dlon, 6),
+                demand=random.randint(1, 3),
+                label=f"Extra-{current_id:04d}",
+            )
+        )
         current_id += 1
 
     # Trim to exact count
@@ -177,10 +182,15 @@ def generate_dataset(
 # CLI
 # ─────────────────────────────────────────────
 
+
 def main():
     parser = argparse.ArgumentParser(description="Generate VRP sample data")
-    parser.add_argument("--n", type=int, default=600, help="Number of delivery locations")
-    parser.add_argument("--city", type=str, default="london", choices=list(CITIES.keys()))
+    parser.add_argument(
+        "--n", type=int, default=600, help="Number of delivery locations"
+    )
+    parser.add_argument(
+        "--city", type=str, default="london", choices=list(CITIES.keys())
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--out", type=str, default="sample_data.json")
     args = parser.parse_args()
@@ -205,10 +215,14 @@ def main():
         )
 
     print(f"✅  Saved {args.n} locations to {args.out}")
-    print(f"   Depot:          {dataset.depot['label']} ({dataset.depot['lat']}, {dataset.depot['lon']})")
+    print(
+        f"   Depot:          {dataset.depot['label']} ({dataset.depot['lat']}, {dataset.depot['lon']})"
+    )
     print(f"   Total demand:   {dataset.metadata['total_demand']} packages")
     print(f"   Vehicles:       {dataset.vehicles['count']}")
-    print(f"   Max duration:   {dataset.vehicles['max_route_duration_seconds']/3600:.1f} h per vehicle")
+    print(
+        f"   Max duration:   {dataset.vehicles['max_route_duration_seconds'] / 3600:.1f} h per vehicle"
+    )
 
 
 if __name__ == "__main__":

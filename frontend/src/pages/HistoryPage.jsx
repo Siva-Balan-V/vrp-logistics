@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useTheme } from '../context/ThemeContext.jsx'
 import { listJobs } from '../api.js'
+import PageHeader from '../components/PageHeader.jsx'
 
 export default function HistoryPage() {
   const { token, user, logout } = useAuth()
@@ -30,92 +31,7 @@ export default function HistoryPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
-      <header
-        style={{
-          height: 64,
-          background: 'var(--bg-1)',
-          borderBottom: '1px solid var(--border)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 24px',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span
-            style={{
-              fontFamily: 'var(--display)',
-              fontWeight: 800,
-              fontSize: 18,
-              letterSpacing: '-0.03em',
-            }}
-          >
-            Route<span style={{ color: 'var(--accent)' }}>Forge</span>
-          </span>
-          <span
-            style={{
-              fontFamily: 'var(--mono)',
-              fontSize: 10,
-              color: 'var(--text-3)',
-              background: 'var(--bg-3)',
-              border: '1px solid var(--border)',
-              padding: '2px 7px',
-              borderRadius: 4,
-            }}
-          >
-            History
-          </span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <a
-            href="/"
-            style={{
-              fontFamily: 'var(--mono)',
-              fontSize: 11,
-              color: 'var(--accent)',
-              textDecoration: 'none',
-              padding: '5px 10px',
-              border: '1px solid var(--accent)',
-              borderRadius: 'var(--radius)',
-            }}
-          >
-            ← New Optimization
-          </a>
-          {user && (
-            <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-2)' }}>
-              {user.email}
-            </span>
-          )}
-          {user && (
-            <button
-              onClick={logout}
-              style={{
-                background: 'var(--bg-3)',
-                color: 'var(--text-2)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius)',
-                padding: '6px 14px',
-                fontSize: 12,
-              }}
-            >
-              Logout
-            </button>
-          )}
-          <button
-            onClick={toggleTheme}
-            style={{
-              background: 'none',
-              color: 'var(--text-3)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius)',
-              padding: '5px 10px',
-              fontSize: 14,
-            }}
-          >
-            {theme === 'dark' ? '☀' : '☾'}
-          </button>
-        </div>
-      </header>
+      <PageHeader badge="History" />
 
       <main style={{ maxWidth: 960, margin: '0 auto', padding: '32px 24px' }}>
         <h1

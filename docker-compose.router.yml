@@ -1,0 +1,28 @@
+name: vrp-router
+
+# Single entry point that routes traffic to the active blue/green stack.
+# deploy.sh regenerates deploy/router/router.conf and recreates this container
+# to flip the active color with zero downtime.
+
+services:
+  router:
+    image: nginx:1.27-alpine
+    container_name: vrp-router
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/router/router.conf:/etc/nginx/conf.d/router.conf:ro
+    networks:
+      - vrp-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  vrp-net:
+    name: vrp-net
+    external: true

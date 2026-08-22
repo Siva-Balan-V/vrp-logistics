@@ -10,7 +10,7 @@ const NAV_LINKS = [
   { href: '/billing', label: 'Billing' },
 ]
 
-export default function Header({ onReset, phase }) {
+export default function PageHeader({ badge, actions }) {
   const { user, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -34,29 +34,23 @@ export default function Header({ onReset, phase }) {
             Route<span style={{ color: 'var(--accent)' }}>Forge</span>
           </span>
         </a>
-        <span style={s.badge}>VRP v1.0</span>
-
-        {phase === 'results' && (
-          <span style={s.statusBadge}>
-            <span style={s.statusDot} />
-            SOLUTION READY
-          </span>
-        )}
-        {phase !== 'idle' && (
-          <button onClick={onReset} style={s.newJobBtn}>
-            New Job
-          </button>
-        )}
+        {badge && <span style={s.badge}>{badge}</span>}
 
         <nav className="page-nav" style={s.nav}>
           {NAV_LINKS.map((l) => (
-            <a key={l.href} href={l.href} style={s.navLink}>{l.label}</a>
+            <a key={l.href} href={l.href} style={s.navLink}>
+              {l.label}
+            </a>
           ))}
           {user?.role === 'admin' && (
-            <a href="/api-keys" style={s.navLink}>API Keys</a>
+            <a href="/admin" style={{ ...s.navLink, color: 'var(--accent)', borderColor: 'var(--accent)' }}>
+              Admin
+            </a>
           )}
           {user?.role === 'admin' && (
-            <a href="/admin" style={{ ...s.navLink, color: 'var(--accent)', borderColor: 'var(--accent)' }}>Admin</a>
+            <a href="/api-keys" style={s.navLink}>
+              API Keys
+            </a>
           )}
         </nav>
 
@@ -81,21 +75,16 @@ export default function Header({ onReset, phase }) {
             </a>
           ))}
           {user?.role === 'admin' && (
-            <a href="/api-keys" style={s.mobileLink} role="menuitem" onClick={() => setMenuOpen(false)}>
-              API Keys
-            </a>
-          )}
-          {user?.role === 'admin' && (
             <a href="/admin" style={s.mobileLink} role="menuitem" onClick={() => setMenuOpen(false)}>
               Admin
             </a>
           )}
-          {phase !== 'idle' && (
-            <button onClick={() => { onReset(); setMenuOpen(false) }} style={s.mobileLink}>New Job</button>
+          {user?.role === 'admin' && (
+            <a href="/api-keys" style={s.mobileLink} role="menuitem" onClick={() => setMenuOpen(false)}>
+              API Keys
+            </a>
           )}
-          <a href="/docs" target="_blank" rel="noopener noreferrer" style={s.mobileLink} onClick={() => setMenuOpen(false)}>
-            API Docs
-          </a>
+          {actions && <div style={{ padding: '4px 24px' }}>{actions}</div>}
           <div style={s.mobileUserRow}>
             {user && <span style={s.userEmail}>{user.email}</span>}
             <button onClick={() => { logout(); setMenuOpen(false) }} style={s.mobileLogout}>Logout</button>
@@ -107,14 +96,19 @@ export default function Header({ onReset, phase }) {
       )}
 
       <div className="page-header-right" style={s.right}>
+        {actions}
         {user && <span style={s.userEmail}>{user.email}</span>}
         {user && (
-          <button onClick={logout} style={s.logoutBtn}>Logout</button>
+          <button onClick={logout} style={s.logoutBtn}>
+            Logout
+          </button>
         )}
         <button onClick={toggleTheme} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} style={s.themeBtn}>
           {theme === 'dark' ? '☀' : '☾'}
         </button>
-        <a href="/docs" target="_blank" rel="noopener noreferrer" style={s.navLink}>API Docs</a>
+        <a href="/docs" target="_blank" rel="noopener noreferrer" style={s.navLink}>
+          API Docs
+        </a>
       </div>
     </header>
   )
@@ -162,33 +156,6 @@ const s = {
     border: '1px solid var(--border)',
     padding: '2px 7px',
     borderRadius: 4,
-    flexShrink: 0,
-  },
-  statusBadge: {
-    fontFamily: 'var(--mono)',
-    fontSize: 11,
-    color: 'var(--green)',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-    flexShrink: 0,
-  },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: '50%',
-    background: 'var(--green)',
-    display: 'inline-block',
-    animation: 'pulse-accent 2s ease infinite',
-  },
-  newJobBtn: {
-    background: 'var(--bg-3)',
-    color: 'var(--text-2)',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius)',
-    padding: '6px 14px',
-    fontSize: 12,
-    fontWeight: 500,
     flexShrink: 0,
   },
   nav: {
@@ -282,11 +249,6 @@ const s = {
     minHeight: 44,
     display: 'flex',
     alignItems: 'center',
-    background: 'none',
-    border: 'none',
-    cursor: 'pointer',
-    textAlign: 'left',
-    width: '100%',
   },
   mobileUserRow: {
     display: 'flex',

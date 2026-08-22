@@ -696,7 +696,7 @@ function GenerateForm({
   setSpeed,
 }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
       <Field label="City">
         <select value={city} onChange={(e) => setCity(e.target.value)} style={{ width: '100%' }}>
           {['london', 'berlin', 'new_york', 'paris', 'tokyo'].map((c) => (

@@ -210,3 +210,25 @@ export async function exportRoute(jobId, format, token) {
   }
   return res.blob()
 }
+
+export async function createRazorpayOrder(planId, token) {
+  return apiFetch(`/api/v1/billing/razorpay/order?plan=${planId}`, {
+    method: 'POST',
+    token,
+  })
+}
+
+export async function verifyRazorpayPayment(body, token) {
+  return apiFetch('/api/v1/billing/razorpay/verify', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    token,
+  })
+}
+
+export async function cancelSubscription(token) {
+  return apiFetch('/api/v1/billing/subscription/cancel', {
+    method: 'POST',
+    token,
+  })
+}

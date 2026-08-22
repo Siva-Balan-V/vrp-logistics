@@ -230,6 +230,7 @@ export default function MapView({
 
       {/* Legend overlay */}
       <div
+        className="map-legend"
         style={{
           position: 'absolute',
           bottom: 20,
@@ -290,6 +291,7 @@ export default function MapView({
       {deliveries && (
         <button
           onClick={() => setShowDensity((v) => !v)}
+          className="map-density-toggle"
           style={{
             position: 'absolute',
             top: 12,
@@ -312,6 +314,7 @@ export default function MapView({
 
       {/* Instruction hint */}
       <div
+        className="map-hint"
         style={{
           position: 'absolute',
           top: 12,

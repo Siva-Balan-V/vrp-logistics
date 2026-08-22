@@ -42,18 +42,18 @@ describe('Header', () => {
 
   it('shows New Job button when phase is not idle', () => {
     renderWithProviders(<Header onReset={() => {}} phase="results" />)
-    expect(screen.getByText('← New Job')).toBeInTheDocument()
+    expect(screen.getByText('New Job')).toBeInTheDocument()
   })
 
   it('does not show New Job button when phase is idle', () => {
     renderWithProviders(<Header onReset={() => {}} phase="idle" />)
-    expect(screen.queryByText('← New Job')).not.toBeInTheDocument()
+    expect(screen.queryByText('New Job')).not.toBeInTheDocument()
   })
 
   it('calls onReset when New Job is clicked', () => {
     const onReset = vi.fn()
     renderWithProviders(<Header onReset={onReset} phase="results" />)
-    fireEvent.click(screen.getByText('← New Job'))
+    fireEvent.click(screen.getByText('New Job'))
     expect(onReset).toHaveBeenCalledTimes(1)
   })
 })

@@ -192,10 +192,11 @@ function AppContent() {
       {phase === 'results' && result && <MetricsBar result={result} />}
 
       <main
+        className="optimize-main"
         style={{
           flex: 1,
           display: 'grid',
-          gridTemplateColumns: phase === 'results' ? '380px 1fr' : '1fr',
+          gridTemplateColumns: phase === 'results' ? 'minmax(320px, 380px) 1fr' : '1fr',
           gap: 0,
           overflow: 'hidden',
           height: phase === 'results' ? 'calc(100vh - 120px)' : 'calc(100vh - 64px)',

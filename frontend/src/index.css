@@ -217,8 +217,116 @@ a:focus-visible {
   filter: brightness(0.85) saturate(0.7);
 }
 
-/* Responsive */
+/* Responsive breakpoints */
+@media (max-width: 480px) {
+  .page-header {
+    padding: 0 12px !important;
+  }
+  .page-header .page-nav {
+    display: none !important;
+  }
+  .page-header .page-header-right {
+    gap: 8px !important;
+  }
+  .page-burger {
+    display: flex !important;
+  }
+  .page-mobile-menu {
+    display: flex !important;
+    flex-direction: column;
+    width: 100%;
+    background: var(--bg-1);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 0;
+  }
+  .optimize-main {
+    grid-template-columns: 1fr !important;
+    height: auto !important;
+  }
+  .leaflet-container {
+    height: 50vh !important;
+  }
+}
+
+@media (min-width: 481px) and (max-width: 768px) {
+  .page-header .page-nav {
+    display: none !important;
+  }
+  .page-burger {
+    display: flex !important;
+  }
+  .page-mobile-menu {
+    display: flex !important;
+    flex-direction: column;
+    width: 100%;
+    background: var(--bg-1);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 0;
+  }
+  .optimize-main {
+    grid-template-columns: 1fr !important;
+    height: auto !important;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .page-burger {
+    display: none !important;
+  }
+  .page-mobile-menu {
+    display: none !important;
+  }
+  .page-header .page-nav {
+    display: flex !important;
+    gap: 4px !important;
+    margin-left: 8px !important;
+  }
+}
+
+@media (min-width: 1025px) {
+  .page-burger {
+    display: none !important;
+  }
+  .page-mobile-menu {
+    display: none !important;
+  }
+}
+
+.optimize-main {
+  grid-template-columns: minmax(320px, 380px) 1fr;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.responsive-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.responsive-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.responsive-form-row > * {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
 @media (max-width: 768px) {
+  .responsive-grid-2 {
+    grid-template-columns: 1fr;
+  }
+  .optimize-main {
+    grid-template-columns: 1fr !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
   main {
     grid-template-columns: 1fr !important;
   }
@@ -227,5 +335,35 @@ a:focus-visible {
   }
   .leaflet-container {
     height: 50vh !important;
+  }
+  button,
+  a,
+  input,
+  select {
+    min-height: 44px;
+  }
+  .map-legend {
+    position: absolute;
+    bottom: 16px;
+    left: 8px;
+    right: auto;
+    z-index: 1000;
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px;
+    font-size: 10px;
+    max-width: 120px;
+  }
+  .map-density-toggle {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 1000;
+  }
+  .map-hint {
+    font-size: 10px;
+    text-align: center;
+    padding: 4px 8px;
   }
 }
