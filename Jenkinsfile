@@ -94,6 +94,9 @@ pipeline {
             steps {
                 sh '''
                     docker rm -f vrp-backend vrp-frontend vrp-postgres vrp-redis 2>/dev/null || true
+                    docker compose down --remove-orphans 2>/dev/null || true
+                    fuser -k 8000/tcp 2>/dev/null || true
+                    sleep 2
                     docker compose up -d --build
                     sleep 5
                     curl -sf http://localhost:8000/health || echo "Health check failed"
