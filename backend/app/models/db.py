@@ -32,6 +32,8 @@ class Company(Base):
     name = Column(String(200), nullable=False)
     plan = Column(String(50), nullable=False, default="free")
     stripe_customer_id = Column(String(255), nullable=True)
+    razorpay_order_id = Column(String(255), nullable=True)
+    razorpay_payment_id = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     users = relationship("User", back_populates="company")
