@@ -43,11 +43,16 @@ class Settings(BaseSettings):
     FUEL_COST_PER_KM: float = 0.35  # $ per km (including maintenance)
     DRIVER_COST_PER_HOUR: float = 25.0  # $ per hour
 
-    # Stripe / Billing
+    # Stripe (legacy — replaced by Razorpay)
     STRIPE_SECRET_KEY: str = ""
     STRIPE_WEBHOOK_SECRET: str = ""
     STRIPE_PRICE_PRO: str = ""
     STRIPE_PRICE_ENTERPRISE: str = ""
+
+    # Razorpay / Billing
+    RAZORPAY_KEY_ID: str = ""
+    RAZORPAY_KEY_SECRET: str = ""
+    RAZORPAY_WEBHOOK_SECRET: str = ""
 
     # Notifications
     TWILIO_ACCOUNT_SID: str = ""
@@ -72,6 +77,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"
 
 
 @lru_cache
