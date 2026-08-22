@@ -93,9 +93,14 @@ pipeline {
         stage('Deploy') {
             steps {
                 sh '''
-                    docker rm -f vrp-backend vrp-frontend vrp-postgres vrp-redis 2>/dev/null || true
                     docker compose down --remove-orphans 2>/dev/null || true
-                    kill -9 $(ss -tlnp sport = :8000 | grep -oP 'pid=\\K\\d+') 2>/dev/null || true
+                    for port in 8000 5173 5433 6379; do
+                        pid=$(ss -tlnp "sport = :$port" 2>/dev/null | grep -oP 'pid=\\K[0-9]+' | head -1)
+                        if [ -n "$pid" ]; then
+                            echo "Killing process $pid on port $port"
+                            kill -9 "$pid" 2>/dev/null || true
+                        fi
+                    done
                     sleep 2
                     docker compose up -d --build
                     sleep 5
