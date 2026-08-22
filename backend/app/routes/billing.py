@@ -1,5 +1,5 @@
 """
-Billing and subscription management routes.
+Billing and subscription management routes (Razorpay).
 """
 
 from __future__ import annotations
@@ -14,10 +14,9 @@ from app.database import get_db
 from app.dependencies import require_user
 from app.models.db import Company, OptimizationJob, User
 from app.services.plans import PLANS, get_plan_limits
-from app.services.stripe_service import (
-    create_checkout_session,
-    create_portal_session,
-    get_or_create_customer,
+from app.services.razorpay_service import (
+    create_order,
+    verify_payment_signature,
 )
 
 logger = structlog.get_logger(__name__)
@@ -80,63 +79,97 @@ async def get_usage(
     }
 
 
-@router.post("/create-checkout")
-async def create_checkout(
+@router.post("/create-order")
+async def create_razorpay_order(
     plan: str,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_user),
 ):
-    """Create a Stripe checkout session for upgrading/downgrading."""
-    settings = get_settings()
-    price_id = None
-    if plan == "pro":
-        price_id = settings.STRIPE_PRICE_PRO
-    elif plan == "enterprise":
-        price_id = settings.STRIPE_PRICE_ENTERPRISE
-    else:
+    """Create a Razorpay order for upgrading/downgrading."""
+    if plan not in ("pro", "enterprise"):
         raise HTTPException(400, f"Invalid plan: {plan}")
-
-    if not price_id:
-        raise HTTPException(400, "Stripe price not configured for this plan")
 
     company_result = await db.execute(select(Company).where(Company.id == user.company_id))
     company = company_result.scalar_one_or_none()
     if not company:
         raise HTTPException(404, "Company not found")
 
-    customer_id = await get_or_create_customer(str(company.id), company.name, user.email)
-    if customer_id:
-        company.stripe_customer_id = customer_id
-        await db.flush()
-
+    settings = get_settings()
     base = str(settings.ALLOWED_ORIGINS[0]) if settings.ALLOWED_ORIGINS else "http://localhost:5173"
-    session = await create_checkout_session(
+
+    order = create_order(
         company_id=str(company.id),
-        company_name=company.name,
-        price_id=price_id,
+        plan=plan,
         success_url=f"{base}/billing?success=1",
         cancel_url=f"{base}/billing?canceled=1",
-        customer_id=customer_id,
     )
-    if not session:
-        raise HTTPException(500, "Failed to create checkout session")
-    return session
+    if not order:
+        raise HTTPException(500, "Failed to create Razorpay order. Check Razorpay credentials.")
+
+    return order
 
 
-@router.post("/portal")
-async def customer_portal(
+@router.post("/verify-payment")
+async def verify_razorpay_payment(
+    razorpay_order_id: str,
+    razorpay_payment_id: str,
+    razorpay_signature: str,
+    plan: str,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_user),
 ):
-    """Create a Stripe Customer Portal session for managing subscription."""
+    """Verify Razorpay payment and upgrade company plan."""
+    is_valid = verify_payment_signature(
+        order_id=razorpay_order_id,
+        payment_id=razorpay_payment_id,
+        signature=razorpay_signature,
+    )
+    if not is_valid:
+        raise HTTPException(400, "Payment signature verification failed")
+
+    if plan not in ("pro", "enterprise"):
+        raise HTTPException(400, f"Invalid plan: {plan}")
+
     company_result = await db.execute(select(Company).where(Company.id == user.company_id))
     company = company_result.scalar_one_or_none()
-    if not company or not company.stripe_customer_id:
-        raise HTTPException(400, "No Stripe customer found")
+    if not company:
+        raise HTTPException(404, "Company not found")
 
-    settings = get_settings()
-    base = str(settings.ALLOWED_ORIGINS[0]) if settings.ALLOWED_ORIGINS else "http://localhost:5173"
-    url = await create_portal_session(company.stripe_customer_id, f"{base}/billing")
-    if not url:
-        raise HTTPException(500, "Failed to create portal session")
-    return {"url": url}
+    company.plan = plan
+    company.razorpay_order_id = razorpay_order_id
+    company.razorpay_payment_id = razorpay_payment_id
+    await db.flush()
+
+    logger.info(
+        "razorpay_payment_verified",
+        company_id=str(company.id),
+        plan=plan,
+        order_id=razorpay_order_id,
+        payment_id=razorpay_payment_id,
+    )
+
+    return {
+        "status": "success",
+        "plan": plan,
+        "message": f"Upgraded to {plan} plan successfully",
+    }
+
+
+@router.post("/cancel-subscription")
+async def cancel_subscription(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Downgrade company to free plan."""
+    company_result = await db.execute(select(Company).where(Company.id == user.company_id))
+    company = company_result.scalar_one_or_none()
+    if not company:
+        raise HTTPException(404, "Company not found")
+
+    company.plan = "free"
+    company.razorpay_order_id = None
+    company.razorpay_payment_id = None
+    await db.flush()
+
+    logger.info("subscription_cancelled", company_id=str(company.id))
+    return {"status": "success", "plan": "free"}
