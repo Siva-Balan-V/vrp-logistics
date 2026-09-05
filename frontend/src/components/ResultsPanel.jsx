@@ -1,11 +1,19 @@
 import { useState, useCallback } from 'react'
 import { vehicleColor, exportRoute } from '../api.js'
+import RouteDetails from './RouteDetails.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
-export default function ResultsPanel({ result, selectedVehicle, onSelectVehicle }) {
+export default function ResultsPanel({
+  result,
+  selectedVehicle,
+  onSelectVehicle,
+  directions,
+  onDirectionsChange,
+  onFocusStep,
+}) {
   const { token } = useAuth()
-  const [tab, setTab] = useState('routes') // routes | unassigned | chart | json
+  const [tab, setTab] = useState('routes') // routes | unassigned | chart | directions | json
   const [copied, setCopied] = useState(false)
 
   const handleShare = useCallback(() => {
@@ -62,6 +70,7 @@ export default function ResultsPanel({ result, selectedVehicle, onSelectVehicle 
           ['routes', `Routes (${result.vehicles_used})`],
           ['unassigned', `Unassigned (${result.unassigned_count})`],
           ['chart', 'Charts'],
+          ['directions', 'Directions'],
           ['json', 'JSON'],
         ].map(([key, label]) => (
           <button
@@ -149,6 +158,24 @@ export default function ResultsPanel({ result, selectedVehicle, onSelectVehicle 
           <UnassignedList unassigned={result.unassigned} labels={result.unassigned_labels} />
         )}
         {tab === 'chart' && <ChartsView vehicles={result.vehicles} />}
+        {tab === 'directions' &&
+          (selectedVehicle ? (
+            <RouteDetails
+              result={result}
+              selectedVehicle={selectedVehicle}
+              onSelectVehicle={onSelectVehicle}
+              directions={directions}
+              onDirectionsChange={onDirectionsChange}
+              onFocusStep={onFocusStep}
+            />
+          ) : (
+            <div style={{ textAlign: 'center', padding: 40 }}>
+              <div style={{ fontSize: 28, marginBottom: 10 }}>🧭</div>
+              <p style={{ color: 'var(--text-2)', fontFamily: 'var(--mono)', fontSize: 12 }}>
+                Select a vehicle on the map or in the routes list to see turn-by-turn directions.
+              </p>
+            </div>
+          ))}
         {tab === 'json' && <JsonView result={result} />}
       </div>
     </div>
