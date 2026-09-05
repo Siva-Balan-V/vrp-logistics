@@ -1,6 +1,6 @@
 # Phase 7 — Advanced Features: Plan
 
-> Status: in progress — items 1–5 done on `feat/traffic-aware-routing`.
+> Status: 🔴 complete — all eight items landed on `feat/traffic-aware-routing`.
 
 ## Goal
 
@@ -65,19 +65,32 @@ Backend-tested increments first, then frontend, then deployment/infra polish.
 - Added `k8s/README.md` with apply/rollout flow and an `emptyDir`→PVC note.
 - YAML validated (pyyaml) and `docker compose config` passes.
 
-### 6. Distributed tracing (51)
-- Add OpenTelemetry FastAPI instrumentation, enabled via
-  `OTEL_EXPORTER_OTLP_ENDPOINT` (opt-out by default).
-- Correlate traces with the existing `X-Request-ID` / `request_id` contextvar.
+### 6. Distributed tracing (51) ✅ done on `feat/traffic-aware-routing`
+- `app/tracing.py` provides `setup_tracing`/`get_tracer`/`is_tracing_enabled`,
+  lazily importing the OTel SDK only when an OTLP endpoint is set (opt-in).
+- Lifespan calls `setup_tracing(OTEL_EXPORTER_OTLP_ENDPOINT, OTEL_SERVICE_NAME)`;
+  the request middleware records `X-Request-ID` as `http.request_id` on the span.
+- Settings/env templates (`.env.example`, `.env.production.example`,
+  `k8s/secret.example.yaml`) document the two OTel vars.
+- Coverage: `tests/test_tracing.py` (disabled no-op, enabled provisioning,
+  idempotency — OTel SDK mocked).
 
-### 7. Grafana dashboard + alerts (51)
-- Commit dashboard JSON and Prometheus alert rules for: solver p95 latency,
-  HTTP 5xx error rate, Redis unavailability.
+### 7. Grafana dashboard + alerts (51) ✅ done on `feat/traffic-aware-routing`
+- `deploy/monitoring/prometheus-alerts.yml`: backend down, 5xx rate >5%,
+  p95 solver >60s, solver error bursts, Redis unavailable, p95 HTTP >10s.
+- Prometheus `rule_files` loads alerts.yml; `docker-compose.monitoring.yml`
+  mounts alerts plus the provisioned dashboard provider and
+  `deploy/monitoring/dashboards/vrp-overview.json` (8 panels).
+- `vrp_redis_connected` gauge set by `cache.py` on init/ping success/failure
+  (covered by `tests/test_metrics.py`).
 
-### 8. Structured logging polish (52)
-- Cover the structlog configuration with tests.
-- Verify JSON output is always used in production path (LOG_FORMAT=json).
-- Document `LOG_LEVEL` / `LOG_FORMAT` / `LOG_FILE` env vars.
+### 8. Structured logging polish (52) ✅ done on `feat/traffic-aware-routing`
+- structlog wiring extracted to `app/logging_config.configure_logging(settings)`;
+  `main.py` calls it with no inline boilerplate.
+- Covered by `tests/test_logging_config.py`: console default, JSON renderer,
+  rotated `LOG_FILE` handler, `LOG_LEVEL` filtering bound logger.
+- Prod templates ship `LOG_FORMAT=json`; `LOG_LEVEL`/`LOG_FORMAT`/`LOG_FILE`
+  documented across `.env.example`, `.env.production.example`, and the k8s Secret.
 
 ## Verification
 
