@@ -26,3 +26,11 @@ def test_console_format_is_default():
     assert any(isinstance(p, structlog.dev.ConsoleRenderer) for p in cfg["processors"])
     assert isinstance(cfg["logger_factory"], structlog.PrintLoggerFactory)
     _reset_structlog()
+
+
+def test_json_format_selects_json_renderer():
+    configure_logging(Settings(LOG_FORMAT="json", _env_file=None))
+    cfg = structlog.get_config()
+    assert any(isinstance(p, structlog.processors.JSONRenderer) for p in cfg["processors"])
+    assert isinstance(cfg["logger_factory"], structlog.PrintLoggerFactory)
+    _reset_structlog()
