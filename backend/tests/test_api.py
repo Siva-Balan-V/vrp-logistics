@@ -535,3 +535,63 @@ class TestErrorHandling:
             )
         assert "boom" not in resp.text
         assert "Internal server error" not in resp.text
+
+
+# ─────────────────────────────────────────────
+
+
+class TestDirectionsEndpoint:
+    def _seed_job(self):
+        from app.services import cache
+
+        resp = OptimizeResponse(
+            job_id="dir-test",
+            status="success",
+            solver_time_seconds=0.123,
+            total_locations=3,
+            assigned_count=3,
+            unassigned_count=0,
+            vehicles_used=1,
+            total_distance_km=45.0,
+            total_time_minutes=90.0,
+            vehicles=[
+                VehicleRoute(
+                    vehicle_id=1,
+                    route=[0, 1, 2, 0],
+                    route_labels=["Depot", "Stop 1", "Stop 2", "Depot"],
+                    distance_km=45.0,
+                    time_minutes=90.0,
+                    packages_delivered=2,
+                    waypoints=[
+                        {"id": 0, "lat": 51.5074, "lon": -0.1278, "priority": 1},
+                        {"id": 1, "lat": 51.5089, "lon": -0.1301, "priority": 1},
+                        {"id": 2, "lat": 51.5100, "lon": -0.1320, "priority": 1},
+                    ],
+                ),
+            ],
+            unassigned=[],
+            unassigned_labels=[],
+            matrix_source="haversine",
+        )
+        cache.set_job("00000000-0000-0000-0000-000000000001", resp.job_id, resp.model_dump())
+
+    def test_directions_returns_steps_for_route(self, client):
+        self._seed_job()
+        resp = client.get("/api/v1/routes/dir-test/directions/route/0")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["job_id"] == "dir-test"
+        assert data["route_index"] == 0
+        assert data["source"] == "haversine"
+        assert len(data["steps"]) == 3
+        assert data["steps"][0]["instruction"] == "Proceed to waypoint"
+        assert data["geometry"], "expected a polyline"
+
+    def test_directions_404_for_missing_job(self, client):
+        resp = client.get("/api/v1/routes/nope/directions/route/0")
+        assert resp.status_code == 404
+
+    def test_directions_404_for_bad_route_index(self, client):
+        self._seed_job()
+        resp = client.get("/api/v1/routes/dir-test/directions/route/9")
+        assert resp.status_code == 404
