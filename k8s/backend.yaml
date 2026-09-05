@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: ghcr.io/your-org/vrp-backend:latest
+          image: ghcr.io/siva-balan-v/vrp-backend:latest
           ports:
             - containerPort: 8000
           envFrom:
