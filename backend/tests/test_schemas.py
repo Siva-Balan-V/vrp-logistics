@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.models.schemas import Location, OptimizeRequest, VehicleSpec
+from app.models.schemas import HealthResponse, Location, OptimizeRequest, VehicleSpec
 
 
 def test_location_lat_precision():
@@ -85,3 +85,12 @@ def test_vehicle_spec_validation():
         VehicleSpec(count=0)
     with pytest.raises(ValidationError):
         VehicleSpec(count=101)
+
+
+def test_routing_backend_is_literal():
+    """routing_backend is an enum, not a free-form string."""
+    with pytest.raises(ValidationError):
+        OptimizeRequest(routing_backend="google-maps", deliveries=[Location(id=1, lat=0, lon=0, demand=1)])
+    with pytest.raises(ValidationError):
+        HealthResponse(status="ok", version="1.0.0", routing_backend="google-maps")
+    assert HealthResponse(status="ok", version="1.0.0", routing_backend="haversine").routing_backend == "haversine"

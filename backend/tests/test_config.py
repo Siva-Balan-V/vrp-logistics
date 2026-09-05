@@ -3,6 +3,9 @@
 import os
 from unittest.mock import patch
 
+import pytest
+from pydantic import ValidationError
+
 from app.config import Settings
 
 
@@ -59,3 +62,9 @@ def test_settings_allowed_origins_parsing():
         assert len(settings.ALLOWED_ORIGINS) == 2
         assert "http://a.com" in settings.ALLOWED_ORIGINS
         assert "http://b.com" in settings.ALLOWED_ORIGINS
+
+
+def test_settings_rejects_invalid_routing_backend():
+    """ROUTING_BACKEND is an enum — unknown values should fail fast."""
+    with patch.dict(os.environ, {"ROUTING_BACKEND": "google-maps"}, clear=True), pytest.raises(ValidationError):
+        Settings(_env_file=None)
