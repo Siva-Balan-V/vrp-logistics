@@ -15,7 +15,7 @@ from app.config import get_settings
 from app.database import get_db, is_db_enabled
 from app.dependencies import ApiKeyPrincipal, get_current_principal, require_permission
 from app.models.db import Company, OptimizationJob, User
-from app.models.schemas import OptimizeRequest, OptimizeResponse
+from app.models.schemas import DirectionsResponse, OptimizeRequest, OptimizeResponse
 from app.services import cache
 from app.services.api_keys import PERMISSION_OPTIMIZE
 from app.services.optimizer import run_optimization_sync
@@ -191,6 +191,68 @@ async def export_routes(
             media_type="application/gpx+xml",
             headers={"Content-Disposition": f'attachment; filename="route_{job_id[:8]}.gpx"'},
         )
+
+
+# ─────────────────────────────────────────────────────────
+# GET /routes/{job_id}/directions/route/{route_index}
+# ─────────────────────────────────────────────────────────
+@router.get(
+    "/routes/{job_id}/directions/route/{route_index}",
+    response_model=DirectionsResponse,
+    summary="Turn-by-turn directions for one vehicle route",
+    description=(
+        "Returns step-by-step driving instructions covering the full ordered "
+        "route (depot → stops → depot). Uses the same routing backend that "
+        "built the distance matrix, with a haversine fallback."
+    ),
+)
+async def get_route_directions(
+    job_id: str,
+    route_index: int,
+    db: AsyncSession = Depends(get_db),
+    principal: User | ApiKeyPrincipal | None = Depends(get_current_principal),
+) -> DirectionsResponse:
+    company_id = principal.company_id if principal else _DEFAULT_COMPANY_ID
+    result = None
+    if db is not None and is_db_enabled():
+        from app.services.job_store import get_job_from_db
+
+        result = await get_job_from_db(db, job_id, company_id)
+    if result is None:
+        result = cache.get_job(company_id, job_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"No result found for job_id={job_id}.")
+
+    response = OptimizeResponse(**result)
+    if route_index < 0 or route_index >= len(response.vehicles):
+        raise HTTPException(
+            status_code=404,
+            detail=f"No route at index {route_index} (job has {len(response.vehicles)} routes).",
+        )
+
+    route = response.vehicles[route_index]
+    waypoints_by_id = {
+        wp["id"]: wp for wp in route.waypoints if wp.get("id") is not None and "lat" in wp and "lon" in wp
+    }
+    coordinates = [
+        (waypoints_by_id[lid]["lat"], waypoints_by_id[lid]["lon"]) for lid in route.route if lid in waypoints_by_id
+    ]
+    if len(coordinates) < 2:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Route at index {route_index} has fewer than two waypoints with coordinates.",
+        )
+
+    from app.services.directions import get_directions_for_route
+
+    directions_result = await get_directions_for_route(coordinates, backend=response.matrix_source)
+    return DirectionsResponse(
+        job_id=job_id,
+        route_index=route_index,
+        source=directions_result["source"],
+        steps=directions_result["steps"],
+        geometry=directions_result["geometry"],
+    )
 
 
 # ─────────────────────────────────────────────────────────
