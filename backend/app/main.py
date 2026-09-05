@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import logging
-import logging.handlers
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -14,6 +12,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.database import init_db, run_migrations, wait_for_db
+from app.logging_config import configure_logging
 from app.middleware.metrics import MetricsMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.models.schemas import HealthResponse
@@ -37,43 +36,7 @@ settings = get_settings()
 # ─────────────────────────────────────────────
 # Structured logging setup
 # ─────────────────────────────────────────────
-log_level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
-
-shared_processors = [
-    structlog.contextvars.merge_contextvars,
-    structlog.processors.add_log_level,
-    structlog.processors.TimeStamper(fmt="iso"),
-    structlog.stdlib.add_log_level,
-]
-
-renderer = structlog.processors.JSONRenderer() if settings.LOG_FORMAT == "json" else structlog.dev.ConsoleRenderer()
-
-if settings.LOG_FILE:
-    handler = logging.handlers.RotatingFileHandler(
-        settings.LOG_FILE,
-        maxBytes=10_485_760,
-        backupCount=5,
-    )
-    handler.setFormatter(
-        structlog.stdlib.ProcessorFormatter(
-            processors=shared_processors + [renderer],
-        ),
-    )
-    logging.basicConfig(handlers=[handler], level=log_level, force=True)
-    structlog.configure(
-        processors=shared_processors + [structlog.stdlib.ProcessorFormatter.wrap_for_formatter],
-        wrapper_class=structlog.make_filtering_bound_logger(log_level),
-        context_class=dict,
-        logger_factory=structlog.stdlib.LoggerFactory(),
-        cache_logger_on_first_use=True,
-    )
-else:
-    structlog.configure(
-        processors=shared_processors + [renderer],
-        wrapper_class=structlog.make_filtering_bound_logger(log_level),
-        context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
-    )
+configure_logging(settings)
 
 logger = structlog.get_logger(__name__)
 
