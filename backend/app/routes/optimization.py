@@ -54,6 +54,12 @@ async def optimize_routes(
                 status_code=422,
                 detail="traffic=true requires ORS_API_KEY to be configured on the server",
             )
+        effective_backend = req.routing_backend or settings.ROUTING_BACKEND
+        if effective_backend != "ors":
+            raise HTTPException(
+                status_code=422,
+                detail=f"traffic=true requires the 'ors' routing backend (got {effective_backend!r})",
+            )
 
     if db is not None and is_db_enabled():
         company_result = await db.execute(select(Company).where(Company.id == principal.company_id))
