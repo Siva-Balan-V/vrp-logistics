@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: ghcr.io/your-org/vrp-frontend:latest
+          image: ghcr.io/siva-balan-v/vrp-frontend:latest
           ports:
             - containerPort: 80
           resources:
