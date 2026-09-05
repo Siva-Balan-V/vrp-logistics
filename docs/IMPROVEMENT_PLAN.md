@@ -75,14 +75,19 @@ A prioritized plan for fixing critical issues, adding features, and preparing th
 
 | # | Feature | Description | Effort |
 |---|---------|-------------|--------|
-| 23 | Live progress tracking | WebSocket or polling with real solver status | Medium |
-| 24 | Unassigned locations on map | Currently invisible — `MapView.jsx:127` | Low |
-| 25 | Route turn-by-turn details | Stop names, arrival times, demand per stop | Medium |
-| 26 | Route export (CSV, GPX) | Download optimized routes | Medium |
-| 27 | JSON upload validation | Validate schema before sending to server | Low |
-| 28 | Solver configuration UI | Time limit, algorithm choice, iterations | Low |
-| 29 | URL state / shareable results | Bookmark or share result views | Medium |
-| 30 | Dark/light theme toggle | CSS custom properties already support it | Low |
+| 23 | ✅ Live progress tracking | WebSocket or polling with real solver status | Medium |
+| 24 | ✅ Unassigned locations on map | Currently invisible — `MapView.jsx:127` | Low |
+| 25 | ✅ Route turn-by-turn details | Stop names, arrival times, demand per stop | Medium |
+| 26 | ✅ Route export (CSV, GPX) | Download optimized routes | Medium |
+| 27 | ✅ JSON upload validation | Validate schema before sending to server | Low |
+| 28 | ✅ Solver configuration UI | Time limit, algorithm choice, iterations | Low |
+| 29 | ✅ URL state / shareable results | Bookmark or share result views | Medium |
+| 30 | ✅ Dark/light theme toggle | CSS custom properties already support it | Low |
+
+> **Phase 5 complete.** Turn-by-turn directions (item 25) shipped on `feat/turn-by-turn`:
+> new `GET /api/v1/routes/{job_id}/directions` endpoint backed by OSRM/ORS leg fetching with
+> Redis + LRU caching and fail-soft fallback, plus a Directions tab in the results panel.
+> Progress polling fallback added when the WebSocket is unavailable.
 
 ---
 
