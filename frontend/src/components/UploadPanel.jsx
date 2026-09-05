@@ -471,6 +471,16 @@ export default function UploadPanel({ phase, error, onSubmit }) {
             <label htmlFor="traffic" style={{ fontSize: 13, cursor: 'pointer' }}>
               Real-time traffic-aware routing
             </label>
+            <span
+              style={{
+                fontSize: 10,
+                fontFamily: 'var(--mono)',
+                color: 'var(--text-3)',
+                marginLeft: 'auto',
+              }}
+            >
+              requires ORS_API_KEY on the server
+            </span>
           </div>
         )}
 
