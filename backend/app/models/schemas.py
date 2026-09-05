@@ -140,7 +140,7 @@ class DirectionStep(BaseModel):
     duration_s: float = Field(default=0.0, description="Duration of this step (seconds)")
     lon: float = Field(..., ge=-180, le=180, description="Longitude at the maneuver point")
     lat: float = Field(..., ge=-90, le=90, description="Latitude at the maneuver point")
-    maneuver: str | None = Field(default=None, description="Raw maneuver code/type from the router")
+    maneuver: str | int | None = Field(default=None, description="Raw maneuver code/type from the router")
 
 
 class DirectionsResponse(BaseModel):
