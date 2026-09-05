@@ -155,11 +155,11 @@ async def get_routes(
 # ─────────────────────────────────────────────────────────
 @router.get(
     "/routes/{job_id}/export",
-    summary="Export route as CSV or GPX",
+    summary="Export route as CSV, GPX, or KML",
 )
 async def export_routes(
     job_id: str,
-    format: str = Query(default="csv", pattern="^(csv|gpx)$"),
+    format: str = Query(default="csv", pattern="^(csv|gpx|kml)$"),
     db: AsyncSession = Depends(get_db),
     principal: User | ApiKeyPrincipal | None = Depends(get_current_principal),
 ) -> Response:
@@ -175,22 +175,40 @@ async def export_routes(
         raise HTTPException(status_code=404, detail=f"No result found for job_id={job_id}.")
 
     response = OptimizeResponse(**result)
-    from app.services.export import generate_csv, generate_gpx
+    from app.services.export import (
+        collect_route_directions,
+        generate_csv,
+        generate_gpx,
+        generate_kml,
+    )
 
     if format == "csv":
-        content = generate_csv(response)
+        legs_by_route = await collect_route_directions(response, backend=response.matrix_source)
+        steps_by_stop = {}
+        for vi, legs in legs_by_route.items():
+            for leg_no, leg in enumerate(legs, start=2):  # stop_sequence 2 is the first stop
+                if leg.get("steps"):
+                    steps_by_stop[(vi, leg_no)] = leg["steps"][-1]
+        content = generate_csv(response, steps_by_stop)
         return Response(
             content=content,
             media_type="text/csv",
             headers={"Content-Disposition": f'attachment; filename="route_{job_id[:8]}.csv"'},
         )
-    else:
+    if format == "gpx":
         content = generate_gpx(response)
         return Response(
             content=content,
             media_type="application/gpx+xml",
             headers={"Content-Disposition": f'attachment; filename="route_{job_id[:8]}.gpx"'},
         )
+    legs_by_route = await collect_route_directions(response, backend=response.matrix_source)
+    content = generate_kml(response, legs_by_route)
+    return Response(
+        content=content,
+        media_type="application/vnd.google-earth.kml+xml",
+        headers={"Content-Disposition": f'attachment; filename="route_{job_id[:8]}.kml"'},
+    )
 
 
 # ─────────────────────────────────────────────────────────
