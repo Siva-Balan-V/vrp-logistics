@@ -134,6 +134,25 @@ class OptimizeResponse(BaseModel):
     total_cost: float = Field(default=0.0, description="Total estimated cost ($)")
 
 
+class DirectionStep(BaseModel):
+    instruction: str = Field(..., description="Human-readable maneuver text")
+    distance_m: float = Field(default=0.0, description="Distance covered by this step (meters)")
+    duration_s: float = Field(default=0.0, description="Duration of this step (seconds)")
+    lon: float = Field(..., ge=-180, le=180, description="Longitude at the maneuver point")
+    lat: float = Field(..., ge=-90, le=90, description="Latitude at the maneuver point")
+    maneuver: str | None = Field(default=None, description="Raw maneuver code/type from the router")
+
+
+class DirectionsResponse(BaseModel):
+    job_id: str
+    route_index: int
+    source: str = Field(description="Directions source used (osrm | ors | haversine)")
+    steps: list[DirectionStep] = Field(default_factory=list)
+    geometry: list[list[float]] = Field(
+        default_factory=list, description="[[lon, lat], ...] flattened polyline across all legs"
+    )
+
+
 class ErrorResponse(BaseModel):
     status: str = "error"
     message: str
