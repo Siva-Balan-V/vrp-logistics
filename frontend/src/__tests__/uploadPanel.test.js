@@ -19,4 +19,11 @@ describe('validatePayload traffic rules', () => {
     const errors = validatePayload({ ...basePayload, traffic: true, routing_backend: 'ors' })
     expect(errors.some((e) => e.includes('traffic'))).toBe(false)
   })
+
+  it('ignores traffic when false or absent', () => {
+    expect(
+      validatePayload({ ...basePayload, traffic: false, routing_backend: 'haversine' }),
+    ).toEqual([])
+    expect(validatePayload(basePayload)).toEqual([])
+  })
 })
