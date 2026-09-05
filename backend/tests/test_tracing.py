@@ -46,3 +46,19 @@ def test_setup_enabled_with_endpoint():
         app.tracing.setup_tracing(otlp_endpoint="http://localhost:4317", service_name="vrp-backend")
     assert app.tracing.is_tracing_enabled() is True
     assert app.tracing.get_tracer() is not None
+
+
+def test_setup_idempotent():
+    with (
+        patch("opentelemetry.sdk.resources.Resource.create", return_value="res"),
+        patch("opentelemetry.sdk.trace.TracerProvider"),
+        patch("opentelemetry.sdk.trace.export.BatchSpanProcessor"),
+        patch("opentelemetry.exporter.otlp.proto.grpc.trace_exporter.OTLPSpanExporter"),
+        patch("opentelemetry.trace.set_tracer_provider"),
+        patch("opentelemetry.trace.get_tracer", return_value="mock-tracer"),
+    ):
+        app.tracing.setup_tracing(otlp_endpoint="http://localhost:4317", service_name="vrp-backend")
+        tracer_first = app.tracing.get_tracer()
+        app.tracing.setup_tracing(otlp_endpoint="http://localhost:4317", service_name="vrp-backend")
+    assert app.tracing.is_tracing_enabled() is True
+    assert app.tracing.get_tracer() is tracer_first
