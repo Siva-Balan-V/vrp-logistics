@@ -142,6 +142,22 @@ export default function ResultsPanel({
           >
             GPX
           </button>
+          <button
+            onClick={() => handleExport('kml')}
+            aria-label="Export as KML"
+            style={{
+              padding: '5px 10px',
+              fontSize: 10,
+              fontFamily: 'var(--mono)',
+              background: 'var(--bg-3)',
+              color: 'var(--text-2)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
+              cursor: 'pointer',
+            }}
+          >
+            KML
+          </button>
         </div>
       </div>
 
