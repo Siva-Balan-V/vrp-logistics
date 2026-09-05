@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react'
-import { vehicleColor, exportRoute } from '../api.js'
+import { useState, useCallback, useEffect } from 'react'
+import { vehicleColor, exportRoute, getRouteDirections } from '../api.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
@@ -33,6 +33,15 @@ export default function ResultsPanel({ result, selectedVehicle, onSelectVehicle 
     [result.job_id, token],
   )
 
+  const hasDirections = result.matrix_source === 'osrm' || result.matrix_source === 'ors'
+  const tabs = [
+    ['routes', `Routes (${result.vehicles_used})`],
+    ['unassigned', `Unassigned (${result.unassigned_count})`],
+    ...(hasDirections ? [['directions', 'Directions']] : []),
+    ['chart', 'Charts'],
+    ['json', 'JSON'],
+  ]
+
   return (
     <div
       style={{
@@ -58,12 +67,7 @@ export default function ResultsPanel({ result, selectedVehicle, onSelectVehicle 
           overflowX: 'auto',
         }}
       >
-        {[
-          ['routes', `Routes (${result.vehicles_used})`],
-          ['unassigned', `Unassigned (${result.unassigned_count})`],
-          ['chart', 'Charts'],
-          ['json', 'JSON'],
-        ].map(([key, label]) => (
+        {tabs.map(([key, label]) => (
           <button
             key={key}
             role="tab"
@@ -88,6 +92,7 @@ export default function ResultsPanel({ result, selectedVehicle, onSelectVehicle 
           <button
             onClick={handleShare}
             aria-label="Copy shareable link"
+            title="Copies a link to this job. Recipients must log in to view it."
             style={{
               padding: '5px 10px',
               fontSize: 10,
@@ -150,9 +155,207 @@ export default function ResultsPanel({ result, selectedVehicle, onSelectVehicle 
         )}
         {tab === 'chart' && <ChartsView vehicles={result.vehicles} />}
         {tab === 'json' && <JsonView result={result} />}
+        {tab === 'directions' && (
+          <DirectionsView jobId={result.job_id} selectedVehicle={selectedVehicle} />
+        )}
       </div>
     </div>
   )
+}
+
+function DirectionsView({ jobId, selectedVehicle }) {
+  const { token } = useAuth()
+  const [data, setData] = useState(null)
+  const [status, setStatus] = useState('loading') // loading | error | ready
+
+  useEffect(() => {
+    let mounted = true
+    setStatus('loading')
+    setData(null)
+    getRouteDirections(jobId, selectedVehicle ?? undefined, token)
+      .then((d) => {
+        if (!mounted) return
+        setData(d)
+        setStatus('ready')
+      })
+      .catch((err) => {
+        if (!mounted) return
+        console.error('Directions fetch failed:', err)
+        setStatus('error')
+      })
+    return () => {
+      mounted = false
+    }
+  }, [jobId, selectedVehicle, token])
+
+  if (status === 'loading') {
+    return (
+      <div style={{ textAlign: 'center', padding: 40 }}>
+        <p style={{ color: 'var(--text-3)', fontFamily: 'var(--mono)', fontSize: 11 }}>
+          Loading turn-by-turn directions…
+        </p>
+      </div>
+    )
+  }
+
+  if (status === 'error') {
+    return (
+      <div style={{ textAlign: 'center', padding: 40 }}>
+        <p style={{ color: 'var(--red)', fontFamily: 'var(--mono)', fontSize: 11 }}>
+          ✗ Could not load directions
+        </p>
+      </div>
+    )
+  }
+
+  if (!data || !data.vehicles || !data.vehicles.length) {
+    return (
+      <div style={{ textAlign: 'center', padding: 40 }}>
+        <p style={{ color: 'var(--text-3)', fontFamily: 'var(--mono)', fontSize: 11 }}>
+          {data?.note || 'No directions available for this job.'}
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {data.vehicles.map((vehicle, vi) => (
+        <div
+          key={vehicle.vehicle_id}
+          style={{
+            background: 'var(--bg-2)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            padding: '10px 12px',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 8,
+            }}
+          >
+            <span
+              style={{
+                fontFamily: 'var(--mono)',
+                fontSize: 11,
+                fontWeight: 600,
+                color: vehicleColor(vi),
+              }}
+            >
+              VEHICLE {vehicle.vehicle_id}
+            </span>
+            <span style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--text-3)' }}>
+              {vehicle.legs.length} legs
+            </span>
+          </div>
+          {vehicle.legs.map((leg, li) => (
+            <div
+              key={li}
+              style={{
+                borderTop: li === 0 ? 'none' : '1px solid var(--border)',
+                paddingTop: li === 0 ? 0 : 8,
+                marginTop: li === 0 ? 0 : 8,
+              }}
+            >
+              <LegHeader leg={leg} index={li} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 4 }}>
+                {leg.steps.length === 0 && (
+                  <span style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--text-3)' }}>
+                    No navigation steps for this leg.
+                  </span>
+                )}
+                {leg.steps.map((step, si) => (
+                  <div
+                    key={si}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'baseline',
+                      gap: 6,
+                      padding: '2px 4px',
+                      borderRadius: 3,
+                      fontSize: 10,
+                      fontFamily: 'var(--mono)',
+                      color: 'var(--text-2)',
+                    }}
+                  >
+                    <span style={{ color: 'var(--text-3)', flexShrink: 0, width: 14 }}>
+                      {si + 1}
+                    </span>
+                    <span style={{ color: 'var(--text)', flex: 1 }}>{step.instruction}</span>
+                    <span style={{ color: 'var(--text-3)', flexShrink: 0 }}>
+                      {formatDistance(step.distance_m)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function LegHeader({ leg, index }) {
+  const fromName = leg.from_stop?.label || `#${leg.from_stop?.id ?? '?'}`
+  const toName = leg.to_stop?.label || `#${leg.to_stop?.id ?? '?'}`
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span
+        style={{
+          fontFamily: 'var(--mono)',
+          fontSize: 9,
+          color: 'var(--text-3)',
+          width: 34,
+          flexShrink: 0,
+        }}
+      >
+        LEG {index + 1}
+      </span>
+      <span
+        style={{
+          fontSize: 11,
+          fontFamily: 'var(--mono)',
+          color: 'var(--accent)',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {fromName} → {toName}
+      </span>
+      {leg.distance_km != null && (
+        <span
+          style={{
+            fontSize: 10,
+            fontFamily: 'var(--mono)',
+            color: 'var(--text-3)',
+            marginLeft: 'auto',
+            flexShrink: 0,
+          }}
+        >
+          {formatDistance(leg.distance_km * 1000)}
+          {leg.duration_s != null ? ` · ${formatDuration(leg.duration_s)}` : ''}
+        </span>
+      )}
+    </div>
+  )
+}
+
+function formatDistance(meters) {
+  if (meters == null) return ''
+  if (meters >= 1000) return `${(meters / 1000).toFixed(1)} km`
+  return `${Math.round(meters)} m`
+}
+
+function formatDuration(seconds) {
+  if (seconds == null) return ''
+  if (seconds >= 60) return `${Math.round(seconds / 60)} min`
+  return `${Math.round(seconds)} s`
 }
 
 function RouteList({ vehicles, selectedVehicle, onSelect }) {

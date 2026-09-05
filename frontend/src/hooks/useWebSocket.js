@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 
 const BASE = import.meta.env.VITE_API_URL || ''
 
@@ -12,9 +12,13 @@ export default function useWebSocket(runId, token, onMessage) {
   const wsRef = useRef(null)
   const reconnectTimer = useRef(null)
   const mountedRef = useRef(true)
+  const [connected, setConnected] = useState(false)
 
   const connect = useCallback(() => {
-    if (!runId || !token) return
+    if (!runId || !token) {
+      setConnected(false)
+      return
+    }
     if (wsRef.current) wsRef.current.close()
 
     const url = `${wsUrl(`/api/v1/ws/optimization/${runId}`)}?token=${encodeURIComponent(token)}`
@@ -26,6 +30,7 @@ export default function useWebSocket(runId, token, onMessage) {
         clearTimeout(reconnectTimer.current)
         reconnectTimer.current = null
       }
+      setConnected(true)
     }
 
     ws.onmessage = (event) => {
@@ -42,6 +47,7 @@ export default function useWebSocket(runId, token, onMessage) {
     ws.onclose = () => {
       if (wsRef.current !== ws) return
       wsRef.current = null
+      setConnected(false)
       if (mountedRef.current && runId) {
         reconnectTimer.current = setTimeout(connect, 2000)
       }
@@ -50,6 +56,7 @@ export default function useWebSocket(runId, token, onMessage) {
 
   useEffect(() => {
     mountedRef.current = true
+    setConnected(false)
     connect()
     return () => {
       mountedRef.current = false
@@ -57,4 +64,6 @@ export default function useWebSocket(runId, token, onMessage) {
       if (wsRef.current) wsRef.current.close()
     }
   }, [connect])
+
+  return connected
 }

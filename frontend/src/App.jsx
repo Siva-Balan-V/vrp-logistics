@@ -18,7 +18,7 @@ import BillingPage from './pages/BillingPage.jsx'
 import AdminPage from './pages/AdminPage.jsx'
 import ApiKeysPage from './pages/ApiKeysPage.jsx'
 import useWebSocket from './hooks/useWebSocket.js'
-import { optimizeRoutes, getJobResult } from './api.js'
+import { optimizeRoutes, getJobResult, getOptimizationStatus } from './api.js'
 import { useAuth } from './context/AuthContext.jsx'
 import { ThemeProvider } from './context/ThemeContext.jsx'
 
@@ -125,7 +125,28 @@ function AppContent() {
       setSolverProgress({ pct: data.pct || 0, message: data.message || '' })
     }
   }, [])
-  useWebSocket(runId, runId ? token : null, onWsMessage)
+  const wsConnected = useWebSocket(runId, runId ? token : null, onWsMessage)
+
+  // Fallback: poll the status endpoint when the websocket is unavailable
+  useEffect(() => {
+    if (phase !== 'solving' || !runId || !token) return
+    if (wsConnected) return
+    let stopped = false
+    const timer = setInterval(async () => {
+      try {
+        const status = await getOptimizationStatus(runId, token)
+        if (!stopped && status.status === 'running' && status.pct != null) {
+          setSolverProgress({ pct: status.pct, message: status.message })
+        }
+      } catch {
+        // best-effort fallback
+      }
+    }, 3000)
+    return () => {
+      stopped = true
+      clearInterval(timer)
+    }
+  }, [phase, runId, token, wsConnected])
 
   // Load from URL on mount
   useEffect(() => {
@@ -224,13 +245,13 @@ function AppContent() {
           </>
         )}
 
-        {phase === 'solving' && <SolvingScreen progress={solverProgress} />}
+        {phase === 'solving' && <SolvingScreen progress={solverProgress} live={wsConnected} />}
       </main>
     </div>
   )
 }
 
-function SolvingScreen({ progress }) {
+function SolvingScreen({ progress, live }) {
   return (
     <div
       style={{
@@ -274,6 +295,17 @@ function SolvingScreen({ progress }) {
           {progress.message || 'Solving...'}
         </p>
       </div>
+      <p
+        style={{
+          fontFamily: 'var(--mono)',
+          fontSize: 10,
+          textAlign: 'center',
+          color: live ? 'var(--green)' : 'var(--red)',
+          marginTop: -8,
+        }}
+      >
+        {live ? '● Live progress connected' : '○ Live progress unavailable — retrying via polling…'}
+      </p>
       <div
         style={{
           display: 'grid',

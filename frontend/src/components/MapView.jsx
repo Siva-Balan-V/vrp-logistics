@@ -285,6 +285,33 @@ export default function MapView({
             </span>
           </div>
         ))}
+        {result.unassigned_count > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              marginTop: 6,
+              paddingTop: 6,
+              borderTop: '1px solid var(--border)',
+              color: 'var(--red)',
+            }}
+          >
+            <span
+              style={{
+                fontSize: 12,
+                fontFamily: 'var(--mono)',
+                lineHeight: 1,
+                flexShrink: 0,
+              }}
+            >
+              ✕
+            </span>
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 10 }}>
+              {result.unassigned_count} unassigned
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Density toggle */}
