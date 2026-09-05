@@ -169,8 +169,13 @@ async def get_directions_for_leg(
 
     cached = cache.get_directions(effective, origin, dest)
     if cached is not None:
-        cached["steps"] = [DirectionStep(**s) for s in cached["steps"]]
-        return cached
+        # Build a fresh dict so the cached entry (returned by reference from the
+        # LRU) is never mutated in place.
+        return {
+            "steps": [DirectionStep(**s) for s in cached["steps"]],
+            "geometry": cached.get("geometry", []),
+            "source": cached.get("source", "haversine"),
+        }
 
     try:
         if effective == "ors" and settings.ORS_API_KEY:

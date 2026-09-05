@@ -166,6 +166,11 @@ def set_directions(
 ) -> None:
     key = _directions_key(backend, origin, dest)
 
+    # Normalize DirectionStep models to plain dicts so both the in-process LRU
+    # and Redis keep JSON-serializable, raw entries.
+    value = dict(value)
+    value["steps"] = [step.model_dump() if hasattr(step, "model_dump") else step for step in value.get("steps", [])]
+
     _directions_cache[key] = value
 
     if _redis_client:
