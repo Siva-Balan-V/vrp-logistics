@@ -115,6 +115,8 @@ function AppContent() {
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
   const [selectedVehicle, setSelectedVehicle] = useState(null)
+  const [directions, setDirections] = useState(null)
+  const [focusPoint, setFocusPoint] = useState(null)
   const [solverProgress, setSolverProgress] = useState({ pct: 0, message: '' })
   const [runId, setRunId] = useState(null)
   const loadedRef = useRef(false)
@@ -153,6 +155,8 @@ function AppContent() {
       setError(null)
       setResult(null)
       setSelectedVehicle(null)
+      setDirections(null)
+      setFocusPoint(null)
       setSolverProgress({ pct: 0, message: 'Request queued...' })
 
       try {
@@ -173,6 +177,9 @@ function AppContent() {
     [token, setSearchParams],
   )
 
+  const handleDirectionsChange = useCallback((d) => setDirections(d), [])
+  const handleFocusStep = useCallback((pt) => setFocusPoint(pt), [])
+
   const handleReset = useCallback(() => {
     setRunId(null)
     setPhase('idle')
@@ -180,6 +187,8 @@ function AppContent() {
     setResult(null)
     setError(null)
     setSelectedVehicle(null)
+    setDirections(null)
+    setFocusPoint(null)
     setSolverProgress({ pct: 0, message: '' })
     loadedRef.current = false
     setSearchParams({}, { replace: true })
@@ -212,6 +221,9 @@ function AppContent() {
               result={result}
               selectedVehicle={selectedVehicle}
               onSelectVehicle={setSelectedVehicle}
+              directions={directions}
+              onDirectionsChange={handleDirectionsChange}
+              onFocusStep={handleFocusStep}
             />
             <MapView
               result={result}
@@ -220,6 +232,8 @@ function AppContent() {
               deliveries={jobData?.deliveries}
               selectedVehicle={selectedVehicle}
               onSelectVehicle={setSelectedVehicle}
+              directions={directions}
+              focusPoint={focusPoint}
             />
           </>
         )}
