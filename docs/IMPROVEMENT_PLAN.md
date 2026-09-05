@@ -92,20 +92,27 @@ A prioritized plan for fixing critical issues, adding features, and preparing th
 
 | # | Issue | File(s) |
 |---|-------|---------|
-| 31 | Dead code: `colors.js`, `SAMPLE_LONDON_MINI`, `isDelivery` | Multiple |
-| 32 | Unused deps: `tenacity`, `scipy`, `python-multipart`, `react-dropzone`, `react-leaflet`, `lucide-react` | `requirements.txt`, `package.json` |
-| 33 | Unused API functions: `getRoutes()`, `checkHealth()` | `frontend/src/api.js` |
-| 34 | Haversine uses O(n²) Python loop instead of vectorized NumPy | `distance_matrix.py:57-62` |
-| 35 | O(n) `list.index()` inside comprehension | `optimizer.py:74` |
-| 36 | Deprecated `@app.on_event("startup")` — use `lifespan` | `main.py:84` |
-| 37 | Zero accessibility: no ARIA, keyboard nav, focus indicators | All components |
-| 38 | No responsive design — zero `@media` queries | All CSS |
-| 39 | No `prefers-reduced-motion` support | `index.css` |
-| 40 | No request/correlation ID for log tracing | `main.py` |
-| 41 | Health check doesn't reflect Redis availability | `main.py:95-101` |
-| 42 | `routing_backend` is free-form string, not enum | `schemas.py:46-48` |
-| 43 | `list_routes` accesses private `_job_cache` directly | `routes/optimization.py:70-71` |
-| 44 | Color contrast fails WCAG AA (`--text-3: #5a6070`) | `index.css:16-17` |
+| 31 | ✅ Dead code: `colors.js`, `SAMPLE_LONDON_MINI`, `isDelivery` | Multiple |
+| 32 | ✅ Unused deps: `tenacity`, `scipy`, `python-multipart`, `react-dropzone`, `react-leaflet`, `lucide-react` | `requirements.txt`, `package.json` |
+| 33 | ✅ Unused API functions: `getRoutes()`, `checkHealth()` | `frontend/src/api.js` |
+| 34 | ✅ Haversine uses O(n²) Python loop instead of vectorized NumPy | `distance_matrix.py:57-62` |
+| 35 | ✅ O(n) `list.index()` inside comprehension | `optimizer.py:74` |
+| 36 | ✅ Deprecated `@app.on_event("startup")` — use `lifespan` | `main.py:84` |
+| 37 | ✅ Zero accessibility: no ARIA, keyboard nav, focus indicators | All components |
+| 38 | ✅ No responsive design — zero `@media` queries | All CSS |
+| 39 | ✅ No `prefers-reduced-motion` support | `index.css` |
+| 40 | ✅ No request/correlation ID for log tracing | `main.py` |
+| 41 | ✅ Health check doesn't reflect Redis availability | `main.py:95-101` |
+| 42 | ✅ `routing_backend` is free-form string, not enum | `schemas.py:46-48` |
+| 43 | ✅ `list_routes` accesses private `_job_cache` directly | `routes/optimization.py:70-71` |
+| 44 | ✅ Color contrast fails WCAG AA (`--text-3: #5a6070`) | `index.css:16-17` |
+
+> **Phase 6 complete.** Most items were already resolved on `main`; audited and documented here,
+> with the remaining gaps closed on `chore/code-quality-phase6`:
+> `routing_backend` is now the shared `RoutingBackend = Literal["haversine", "osrm", "ors"]`
+> across `OptimizeRequest`/`OptimizeResponse`/`HealthResponse`, `config.py` fails fast on unknown
+> `ROUTING_BACKEND` values, unused `python-multipart` dep removed, and a11y gaps filled
+> (skip-to-content link with visible focus, `aria-live` solver progress).
 
 ---
 
