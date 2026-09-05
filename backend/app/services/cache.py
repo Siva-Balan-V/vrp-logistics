@@ -19,6 +19,9 @@ logger = structlog.get_logger(__name__)
 # In-process LRU (stores up to 20 matrices – each can be 600×600×8 bytes ≈ 2.9 MB)
 _lru: LRUCache = LRUCache(maxsize=20)
 
+# Small, cheap entries for per-leg turn-by-turn data
+_directions_lru: LRUCache = LRUCache(maxsize=500)
+
 _redis_client: Any | None = None
 
 
@@ -154,6 +157,46 @@ def set_job(company_id, job_id: str, result: dict, ttl_seconds: int = 7200) -> N
     if _redis_client:
         with suppress(Exception):
             _redis_client.setex(f"job:{company_id}:{job_id}", ttl_seconds, json.dumps(result))
+
+
+# ── Turn-by-turn directions cache (per-leg route steps) ─────────
+
+
+def _directions_key(backend: str, from_coord: tuple[float, float], to_coord: tuple[float, float]) -> str:
+    raw = json.dumps({"backend": backend, "from": from_coord, "to": to_coord}, sort_keys=True)
+    return "directions:" + hashlib.sha256(raw.encode()).hexdigest()
+
+
+def get_directions(
+    backend: str,
+    from_coord: tuple[float, float],
+    to_coord: tuple[float, float],
+) -> dict | None:
+    key = _directions_key(backend, from_coord, to_coord)
+    if _redis_client:
+        try:
+            data = _redis_client.get(key)
+            if data:
+                return json.loads(data)
+        except Exception as exc:
+            logger.warning("redis_directions_get_error", error=str(exc))
+    return _directions_lru.get(key)
+
+
+def set_directions(
+    backend: str,
+    from_coord: tuple[float, float],
+    to_coord: tuple[float, float],
+    value: dict,
+    ttl_seconds: int = 86_400,
+) -> None:
+    key = _directions_key(backend, from_coord, to_coord)
+    _directions_lru[key] = value
+    if _redis_client:
+        try:
+            _redis_client.setex(key, ttl_seconds, json.dumps(value))
+        except Exception as exc:
+            logger.warning("redis_directions_set_error", error=str(exc))
 
 
 # ── Progress tracking (in-flight solver status) ─────────────
