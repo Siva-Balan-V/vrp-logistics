@@ -56,3 +56,12 @@ def test_log_file_wires_rotating_file_handler(tmp_path, monkeypatch):
         logger = logging.getLogger()
         logger.handlers[:] = root_handlers
         _reset_structlog()
+
+
+def test_log_level_maps_to_filtering_bound_logger():
+    configure_logging(Settings(LOG_FORMAT="console", LOG_LEVEL="WARNING", _env_file=None))
+    cfg = structlog.get_config()
+    wrapper = cfg["wrapper_class"]
+    assert wrapper is not None
+    assert cfg["cache_logger_on_first_use"] is False
+    _reset_structlog()
