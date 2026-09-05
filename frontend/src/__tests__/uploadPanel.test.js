@@ -14,4 +14,9 @@ describe('validatePayload traffic rules', () => {
       errors.some((e) => e.includes('"traffic": true requires "routing_backend": "ors"')),
     ).toBe(true)
   })
+
+  it('accepts traffic=true with routing_backend "ors"', () => {
+    const errors = validatePayload({ ...basePayload, traffic: true, routing_backend: 'ors' })
+    expect(errors.some((e) => e.includes('traffic'))).toBe(false)
+  })
 })
