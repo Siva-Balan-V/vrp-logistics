@@ -187,11 +187,15 @@ function AppContent() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <a href="#main-content" className="sr-only skip-link">
+        Skip to content
+      </a>
       <Header onReset={handleReset} phase={phase} />
 
       {phase === 'results' && result && <MetricsBar result={result} />}
 
       <main
+        id="main-content"
         className="optimize-main"
         style={{
           flex: 1,
@@ -264,8 +268,10 @@ function SolvingScreen({ progress }) {
           />
         </div>
         <p
+          role="status"
+          aria-live="polite"
           style={{
-            textAlign: 'center',
+            marginBottom: 4,
             fontFamily: 'var(--mono)',
             fontSize: 11,
             color: 'var(--text-2)',
