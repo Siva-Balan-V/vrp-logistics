@@ -14,6 +14,11 @@ class Settings(BaseSettings):
     LOG_FORMAT: str = "console"  # "console" | "json"
     LOG_FILE: str | None = None  # Path to log file (rotated) if set
 
+    # OpenTelemetry (distributed tracing) — enabled only when an OTLP
+    # endpoint is configured; otherwise tracing is completely off.
+    OTEL_EXPORTER_OTLP_ENDPOINT: str | None = None
+    OTEL_SERVICE_NAME: str = "vrp-backend"
+
     # API Keys
     ORS_API_KEY: str = ""  # OpenRouteService API key
     OSRM_BASE_URL: str = "http://router.project-osrm.org"
