@@ -595,3 +595,48 @@ class TestDirectionsEndpoint:
         self._seed_job()
         resp = client.get("/api/v1/routes/dir-test/directions/route/9")
         assert resp.status_code == 404
+
+
+class TestExportEndpoint:
+    def _seed_job(self):
+        from app.services import cache
+
+        resp = _make_fake_response(job_id="export-test")
+        resp.vehicles[0].waypoints = [
+            {"id": 0, "lat": 51.5074, "lon": -0.1278},
+            {"id": 1, "lat": 51.5089, "lon": -0.1301},
+            {"id": 2, "lat": 51.5100, "lon": -0.1320},
+            {"id": 0, "lat": 51.5074, "lon": -0.1278},
+        ]
+        cache.set_job("00000000-0000-0000-0000-000000000001", resp.job_id, resp.model_dump())
+
+    def test_export_csv_includes_direction_columns(self, client):
+        self._seed_job()
+        resp = client.get("/api/v1/routes/export-test/export?format=csv")
+        assert resp.status_code == 200
+        assert "arrive_maneuver" in resp.text
+        assert "arrive_instruction" in resp.text
+        assert "Proceed to waypoint" in resp.text  # haversine fallback steps
+
+    def test_export_kml(self, client):
+        self._seed_job()
+        resp = client.get("/api/v1/routes/export-test/export?format=kml")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("application/vnd.google-earth.kml+xml")
+        assert "<kml" in resp.text
+        assert "Leg 1" in resp.text
+
+    def test_export_gpx_still_works(self, client):
+        self._seed_job()
+        resp = client.get("/api/v1/routes/export-test/export?format=gpx")
+        assert resp.status_code == 200
+        assert "<gpx" in resp.text
+
+    def test_export_unknown_format_422(self, client):
+        self._seed_job()
+        resp = client.get("/api/v1/routes/export-test/export?format=docx")
+        assert resp.status_code == 422
+
+    def test_export_missing_job_404(self, client):
+        resp = client.get("/api/v1/routes/nope/export?format=kml")
+        assert resp.status_code == 404
