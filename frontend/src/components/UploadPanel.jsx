@@ -38,6 +38,9 @@ export function validatePayload(json) {
     if (!isNum(json.vehicles.capacity) || json.vehicles.capacity <= 0)
       errors.push('vehicles: "capacity" must be a positive number')
   }
+  if (json.traffic === true && json.routing_backend !== 'ors') {
+    errors.push('"traffic": true requires "routing_backend": "ors" (real-time traffic is ORS-only)')
+  }
   return errors
 }
 
