@@ -29,6 +29,7 @@ from app.routes.optimization import router as opt_router
 from app.routes.webhooks import router as webhooks_router
 from app.services import cache
 from app.services.cache import init_cache
+from app.tracing import is_tracing_enabled, setup_tracing
 from app.websocket_manager import manager
 
 settings = get_settings()
@@ -82,6 +83,7 @@ logger = structlog.get_logger(__name__)
 # ─────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_tracing(settings.OTEL_EXPORTER_OTLP_ENDPOINT, settings.OTEL_SERVICE_NAME)
     init_cache(settings.REDIS_URL)
     init_db(settings.DATABASE_URL)
     if settings.DATABASE_URL:
@@ -143,6 +145,12 @@ def create_app() -> FastAPI:
             method=request.method,
             request_id=request_id,
         )
+        if is_tracing_enabled():
+            from opentelemetry import trace
+
+            span = trace.get_current_span()
+            if span.is_recording():
+                span.set_attribute("http.request_id", request_id)
         response = await call_next(request)
         elapsed = round((time.perf_counter() - start) * 1000, 1)
         response.headers["X-Process-Time-Ms"] = str(elapsed)
