@@ -4,7 +4,7 @@ function isNum(v) {
   return typeof v === 'number' && Number.isFinite(v)
 }
 
-function validatePayload(json) {
+export function validatePayload(json) {
   const errors = []
   if (!json.deliveries || !Array.isArray(json.deliveries) || json.deliveries.length === 0) {
     errors.push('"deliveries" must be a non-empty array')
