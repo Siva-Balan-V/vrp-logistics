@@ -268,6 +268,15 @@ class TestOptimizeRoutes:
         resp = client.post("/api/v1/optimize-routes", json=req)
         assert resp.status_code == 422
 
+    def test_traffic_requires_ors_api_key(self, client, sample_request, monkeypatch):
+        from app.config import get_settings
+
+        monkeypatch.setattr(get_settings(), "ORS_API_KEY", "")
+        req = {**sample_request, "routing_backend": "ors", "traffic": True}
+        resp = client.post("/api/v1/optimize-routes", json=req)
+        assert resp.status_code == 422
+        assert "ORS_API_KEY" in resp.json()["detail"]
+
     def test_response_has_vehicles_list(self, client, sample_request):
         resp = client.post("/api/v1/optimize-routes", json=sample_request)
         vehicles = resp.json()["vehicles"]
