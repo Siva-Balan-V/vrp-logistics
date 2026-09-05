@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db, is_db_enabled
 from app.dependencies import ApiKeyPrincipal, get_current_principal, require_permission
 from app.models.db import Company, OptimizationJob, User
-from app.models.schemas import OptimizeRequest, OptimizeResponse
+from app.models.schemas import DirectionsResponse, OptimizeRequest, OptimizeResponse
 from app.services import cache
 from app.services.api_keys import PERMISSION_OPTIMIZE
 from app.services.optimizer import run_optimization_sync
@@ -176,6 +176,58 @@ async def export_routes(
             media_type="application/gpx+xml",
             headers={"Content-Disposition": f'attachment; filename="route_{job_id[:8]}.gpx"'},
         )
+
+
+# ─────────────────────────────────────────────────────────
+# GET /routes/{job_id}/directions
+# ─────────────────────────────────────────────────────────
+@router.get(
+    "/routes/{job_id}/directions",
+    response_model=DirectionsResponse,
+    summary="Get turn-by-turn directions for a job",
+)
+async def get_route_directions(
+    job_id: str,
+    vehicle_id: int | None = Query(default=None, description="Limit to a single vehicle id"),
+    db: AsyncSession = Depends(get_db),
+    principal: User | ApiKeyPrincipal | None = Depends(get_current_principal),
+) -> DirectionsResponse:
+    company_id = principal.company_id if principal else _DEFAULT_COMPANY_ID
+    result = None
+    # Try PostgreSQL first
+    if db is not None and is_db_enabled():
+        from app.services.job_store import get_job_from_db
+
+        result = await get_job_from_db(db, job_id, company_id)
+    # Fallback to cache
+    if result is None:
+        result = cache.get_job(company_id, job_id)
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No result found for job_id={job_id}.",
+        )
+
+    response = OptimizeResponse(**result)
+    backend = response.matrix_source or "haversine"
+    vehicles = [v for v in response.vehicles if vehicle_id is None or v.vehicle_id == vehicle_id]
+
+    # Only road-network backends produce navigation steps
+    if backend not in ("osrm", "ors"):
+        return DirectionsResponse(
+            job_id=job_id,
+            backend=backend,
+            note="Job used the haversine backend, which has no road-network turn-by-turn data. "
+            "Re-run with OSRM or ORS for navigation steps.",
+            vehicles=[{"vehicle_id": v.vehicle_id, "legs": []} for v in vehicles],
+        )
+
+    from app.services.directions import build_vehicle_directions
+
+    vehicle_dirs = await asyncio.gather(
+        *(build_vehicle_directions(backend, v.model_dump(exclude={"route_labels"}), v.route_labels) for v in vehicles)
+    )
+    return DirectionsResponse(job_id=job_id, backend=backend, vehicles=vehicle_dirs)
 
 
 # ─────────────────────────────────────────────────────────

@@ -134,6 +134,48 @@ class OptimizeResponse(BaseModel):
     total_cost: float = Field(default=0.0, description="Total estimated cost ($)")
 
 
+# ─────────────────────────────────────────────
+# DIRECTIONS (TURN-BY-TURN) SCHEMAS
+# ─────────────────────────────────────────────
+
+
+class DirectionsStep(BaseModel):
+    instruction: str
+    name: str | None = Field(default=None, description="Street/road name")
+    distance_m: float | None = Field(default=None)
+    duration_s: float | None = Field(default=None)
+    maneuver: str | None = Field(default=None, description="OSRM/ORS step type")
+    modifier: str | None = Field(default=None, description="OSRM maneuver modifier (left/right/…)")
+    location: list[float] | None = Field(default=None, description="[lat, lon] of the maneuver")
+
+
+class DirectionsStop(BaseModel):
+    id: int | None = None
+    label: str | None = None
+    lat: float
+    lon: float
+
+
+class DirectionsLeg(BaseModel):
+    from_stop: DirectionsStop
+    to_stop: DirectionsStop
+    distance_km: float | None = None
+    duration_s: float | None = None
+    steps: list[DirectionsStep] = Field(default_factory=list)
+
+
+class VehicleDirections(BaseModel):
+    vehicle_id: int
+    legs: list[DirectionsLeg] = Field(default_factory=list)
+
+
+class DirectionsResponse(BaseModel):
+    job_id: str
+    backend: str = Field(description="Routing backend the job used (osrm | ors | haversine)")
+    note: str | None = Field(default=None, description="Optional explanation (e.g. no road data)")
+    vehicles: list[VehicleDirections] = Field(default_factory=list)
+
+
 class ErrorResponse(BaseModel):
     status: str = "error"
     message: str
