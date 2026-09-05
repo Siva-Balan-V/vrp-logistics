@@ -3,6 +3,7 @@ import {
   optimizeRoutes as rawOptimizeRoutes,
   apiFetch,
   exportRoute,
+  getRouteDirections,
   vehicleColor,
   VEHICLE_COLORS,
 } from '../api.js'
@@ -187,5 +188,50 @@ describe('exportRoute', () => {
     const [url, options] = mockFetch.mock.calls[0]
     expect(url).toContain('/api/v1/routes/job-1/export?format=gpx')
     expect(options.headers.Authorization).toBe('Bearer secret-token')
+  })
+})
+
+describe('getRouteDirections', () => {
+  beforeEach(() => {
+    mockFetch.mockReset()
+  })
+
+  it('should fetch directions for a whole job when no vehicle given', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ job_id: 'job-1', backend: 'osrm', vehicles: [] }),
+    })
+
+    const data = await getRouteDirections('job-1', null, 'secret-token')
+
+    expect(data.backend).toBe('osrm')
+    const [url, options] = mockFetch.mock.calls[0]
+    expect(url).toContain('/api/v1/routes/job-1/directions')
+    expect(options.headers.Authorization).toBe('Bearer secret-token')
+  })
+
+  it('should include the vehicle_id query param when provided', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ job_id: 'job-1', backend: 'osrm', vehicles: [] }),
+    })
+
+    await getRouteDirections('job-1', 3, null)
+
+    const [url] = mockFetch.mock.calls[0]
+    expect(url).toContain('/api/v1/routes/job-1/directions?vehicle_id=3')
+  })
+
+  it('should throw on error', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      json: () => Promise.resolve({ detail: 'No result found' }),
+    })
+
+    await expect(getRouteDirections('nope', null, null)).rejects.toMatchObject({
+      message: 'No result found',
+      status: 404,
+    })
   })
 })
