@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import get_settings
-from app.database import init_db, wait_for_db
+from app.database import init_db, run_migrations, wait_for_db
 from app.middleware.metrics import MetricsMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.models.schemas import HealthResponse
@@ -84,7 +84,9 @@ logger = structlog.get_logger(__name__)
 async def lifespan(app: FastAPI):
     init_cache(settings.REDIS_URL)
     init_db(settings.DATABASE_URL)
-    await wait_for_db(settings.DATABASE_URL)
+    if settings.DATABASE_URL:
+        await wait_for_db(settings.DATABASE_URL)
+        run_migrations(settings.DATABASE_URL)
     if not settings.JWT_SECRET_KEY:
         logger.warning("jwt_secret_not_set", detail="JWT_SECRET_KEY is empty — set it in .env for production")
     elif settings.JWT_SECRET_KEY == "CHANGE-ME-IN-PRODUCTION":
