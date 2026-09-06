@@ -1,6 +1,7 @@
 # Phase 8 — Live Dispatch & Delivery Execution: Plan
 
-> Status: in progress — 8.1–8.7 completed and committed; 8.8 a11y remaining.
+> Status: complete — all items 8.1–8.8 implemented, tested, and committed on
+> `feat/live-dispatch`. Full backend + frontend suites green.
 
 ## Goal
 
@@ -95,7 +96,7 @@ Real instruction-level route legs so drivers can actually follow the plan.
   links, plus a `docs/CONFIGURATION.md` env-var reference (auto vs manual):
   `LOG_*`, `OTEL_*`, `REDIS_*`, `DATABASE_URL`, `ROUTING_BACKEND`, billing keys.
 
-### 8.8 Accessibility pass (improvement item 37) — Medium
+### 8.8 Accessibility pass (improvement item 37) — Medium ✅ Done
 - Keyboard navigation for `ResultsPanel` tabs, `UploadPanel` toggles, header
   menu; proper ARIA roles/labels; visible focus indicators.
 - Ensure WCAG AA contrast for `--text-*` tokens (verify with automated check).
