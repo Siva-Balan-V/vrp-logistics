@@ -1,7 +1,6 @@
 # Phase 8 — Live Dispatch & Delivery Execution: Plan
 
-> Status: in progress — 8.1–8.6 completed and committed (8.1–8.3, 8.5 earlier; 8.4
-> live-dispatch branch; 8.6 replan); 8.7 docs and 8.8 a11y remaining.
+> Status: in progress — 8.1–8.7 completed and committed; 8.8 a11y remaining.
 
 ## Goal
 
@@ -88,7 +87,7 @@ Real instruction-level route legs so drivers can actually follow the plan.
 - Returns updated route + ETAs; persists as a new job linked to the old one.
 - Tests: remaining-stops subset solves; delivered stops excluded.
 
-### 8.7 Release hygiene & documentation — Low
+### 8.7 Release hygiene & documentation — Low ✅ Done
 - `CHANGELOG.md` (keep-a-changelog format; backfill from Phases 1–8).
 - `CONTRIBUTING.md` (toolchain, test/lint commands, pre-commit, branching).
 - Consolidate `INFRASTRUCTURE_SETUP.md` + `JENKINS_SETUP.md` +
