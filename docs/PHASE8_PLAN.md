@@ -81,7 +81,7 @@ Real instruction-level route legs so drivers can actually follow the plan.
 - Tests: transition guards (out-of-order), notification provider mocked,
   delayed trigger fires on stale drivers.
 
-### 8.6 Ride-along re-optimization (disruption handling) — Medium
+### 8.6 Ride-along re-optimization (disruption handling) — Medium ✅ Done
 - `POST /api/v1/optimize-routes/replan`: takes the previous `job_id` + live
   driver positions; re-solves only the remaining (non-delivered) stops with the
   current position as the start point, keeps depot/vehicle constraints.
