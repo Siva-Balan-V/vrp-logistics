@@ -15,11 +15,12 @@ from app.config import get_settings
 from app.database import get_db, is_db_enabled
 from app.dependencies import ApiKeyPrincipal, get_current_principal, require_permission
 from app.models.db import Company, OptimizationJob, User
-from app.models.schemas import DirectionsResponse, OptimizeRequest, OptimizeResponse
+from app.models.schemas import DirectionsResponse, OptimizeRequest, OptimizeResponse, ReplanRequest
 from app.services import cache
 from app.services.api_keys import PERMISSION_OPTIMIZE
 from app.services.optimizer import run_optimization_sync
 from app.services.plans import check_optimization_limit
+from app.services.replan import PreviousJobNotFoundError, run_replan
 
 logger = structlog.get_logger(__name__)
 settings = get_settings()
@@ -102,6 +103,40 @@ async def optimize_routes(
         raise HTTPException(
             status_code=500,
             detail="Optimization failed. Check server logs for details.",
+        ) from exc
+
+
+# ─────────────────────────────────────────────────────────
+# POST /optimize-routes/replan
+# ─────────────────────────────────────────────────────────
+@router.post(
+    "/optimize-routes/replan",
+    response_model=OptimizeResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Ride-along re-optimization of a previous job",
+    description=(
+        "Re-solves only the remaining (non-delivered) stops of a previous job, "
+        "seeding each route from a driver's live position. Persisted as a new "
+        "job linked to the previous one."
+    ),
+)
+async def replan_routes(
+    req: ReplanRequest,
+    db: AsyncSession = Depends(get_db),
+    principal: User | ApiKeyPrincipal = Depends(require_permission(PERMISSION_OPTIMIZE)),
+) -> OptimizeResponse:
+    company_id = principal.company_id
+    try:
+        return await run_replan(db, company_id, req)
+    except PreviousJobNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error("replan_error", error=str(exc), exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Re-planning failed. Check server logs for details.",
         ) from exc
 
 
