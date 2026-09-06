@@ -1,6 +1,7 @@
 # Phase 8 — Live Dispatch & Delivery Execution: Plan
 
-> Status: proposed — nothing implemented yet.
+> Status: in progress — 8.1–8.5 completed and committed (8.1–8.3, 8.5 earlier;
+> 8.4 in the live-dispatch branch); 8.6–8.8 remaining.
 
 ## Goal
 
@@ -34,7 +35,7 @@ milestone 2.6) and adds release hygiene.
 
 ## Scope — 8 items
 
-### 8.1 Turn-by-turn directions engine (roadmap 2.6) — High
+### 8.1 Turn-by-turn directions engine (roadmap 2.6) — High ✅ Done
 Real instruction-level route legs so drivers can actually follow the plan.
 - `app/services/directions.py`: fetch route geometry + maneuvers from OSRM
   (or ORS when `routing_backend=ors`), with haversine fallback producing a
@@ -47,7 +48,7 @@ Real instruction-level route legs so drivers can actually follow the plan.
 - Tests: mocked OSRM geometry parsing, ORS variant, haversine fallback,
   cache hit.
 
-### 8.2 RouteDetails panel with step-by-step instructions — Medium
+### 8.2 RouteDetails panel with step-by-step instructions — Medium ✅ Done
 - New `RouteDetails` component: active-vehicle tabs, maneuver list (turn
   icons/arrows, distance, ETA deltas), tap a step to focus map.
 - Render leg polyline on `MapView` for the selected route (multi-stop path
@@ -56,13 +57,13 @@ Real instruction-level route legs so drivers can actually follow the plan.
   checks in stops (feeds 8.5).
 - Tests: component test with a fixture route; vitest.
 
-### 8.3 Route export: KML + directions in CSV — Medium
+### 8.3 Route export: KML + directions in CSV — Medium ✅ Done
 - Add KML generator (`_generate_kml`) with per-leg waypoints + step names.
 - Extend CSV export with direction columns (maneuver + step instruction).
 - Extend `routes/export.py` to serve `kml` format.
 - Tests: `test_export.py` additions assert well-formed XML/doc structure.
 
-### 8.4 Live fleet dispatch view — High
+### 8.4 Live fleet dispatch view — High ✅ Done
 - WebSocket `WS /api/v1/ws/drivers/{company_id}` broadcasting driver position
   updates (subscribe on driver GPS ping; throttle to 1/s per driver).
 - Frontend `DispatchPage`: fleet map with a live marker per driver (pulsing
@@ -70,7 +71,7 @@ Real instruction-level route legs so drivers can actually follow the plan.
 - Guard with auth dependency; scope strictly to `company_id` (tenant-safe).
 - Tests: WS broadcast test, unauthorized cross-tenant access rejected.
 
-### 8.5 Stop lifecycle + automated notifications — High
+### 8.5 Stop lifecycle + automated notifications — High ✅ Done
 - Add `status` to stops in job store / optimize response
   (`pending → en_route → arrived → delivered`), persisted per job.
 - `POST /api/v1/drivers/{driver_id}/stops/{stop_id}/status` transitions a stop
