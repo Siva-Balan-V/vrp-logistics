@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 from typing import Any, Literal
 
@@ -99,6 +100,47 @@ class OptimizeRequest(BaseModel):
     }
 
 
+class ReplanDriver(BaseModel):
+    driver_id: uuid.UUID = Field(..., description="Driver whose position seeds this vehicle route")
+    lat: float = Field(..., ge=-90, le=90, description="Live driver latitude")
+    lon: float = Field(..., ge=-180, le=180, description="Live driver longitude")
+
+    @field_validator("lat")
+    @classmethod
+    def lat_precision(cls, v: float) -> float:
+        return round(v, 6)
+
+    @field_validator("lon")
+    @classmethod
+    def lon_precision(cls, v: float) -> float:
+        return round(v, 6)
+
+
+class ReplanRequest(BaseModel):
+    previous_job_id: str = Field(..., description="Job ID of the optimization to re-plan from")
+    drivers: list[ReplanDriver] = Field(
+        default_factory=list,
+        max_length=100,
+        description="Live driver positions — each becomes a route start (seeded as a depot)",
+    )
+    vehicles: VehicleSpec | None = Field(default=None, description="Optional vehicle spec override")
+    routing_backend: Literal["haversine", "osrm", "ors"] | None = Field(
+        default=None, description="Override routing backend: osrm | ors | haversine"
+    )
+    traffic: bool = Field(default=False, description="Use real-time traffic data (ORS only; requires ORS_API_KEY)")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "previous_job_id": "f2ec6a8e-59be-4caf-bda1-5e1e6b2f1d9a",
+                "drivers": [
+                    {"driver_id": "00000000-0000-0000-0000-000000000003", "lat": 51.515, "lon": -0.072},
+                ],
+            }
+        }
+    }
+
+
 # ─────────────────────────────────────────────
 # OUTPUT SCHEMAS
 # ─────────────────────────────────────────────
@@ -135,6 +177,9 @@ class OptimizeResponse(BaseModel):
     fuel_cost: float = Field(default=0.0, description="Estimated fuel cost ($)")
     driver_cost: float = Field(default=0.0, description="Estimated driver cost ($)")
     total_cost: float = Field(default=0.0, description="Total estimated cost ($)")
+    previous_job_id: str | None = Field(
+        default=None, description="Job ID this result re-planned from (set for ride-along replans)"
+    )
 
 
 class DirectionStep(BaseModel):
