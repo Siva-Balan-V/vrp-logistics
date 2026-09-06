@@ -23,6 +23,7 @@ from app.models.schemas import (
     StopStatusUpdate,
 )
 from app.services.eta import compute_live_eta
+from app.services.live_dispatch import broadcast_driver_location
 from app.services.notifications import send_notification
 from app.services.stop_lifecycle import (
     InvalidStopTransitionError,
@@ -139,6 +140,14 @@ async def update_driver_location(
 
     await db.flush()
     route = await _get_assigned_route(db, driver_id)
+    try:
+        await broadcast_driver_location(
+            driver,
+            user.company_id,
+            route.get("route") if route else None,
+        )
+    except Exception:
+        logger.exception("driver_location_broadcast_failed", driver_id=str(driver_id))
     return _driver_to_response(driver, route)
 
 
