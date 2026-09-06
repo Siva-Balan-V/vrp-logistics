@@ -1,7 +1,7 @@
 # Phase 8 — Live Dispatch & Delivery Execution: Plan
 
-> Status: in progress — 8.1–8.5 completed and committed (8.1–8.3, 8.5 earlier;
-> 8.4 in the live-dispatch branch); 8.6–8.8 remaining.
+> Status: in progress — 8.1–8.6 completed and committed (8.1–8.3, 8.5 earlier; 8.4
+> live-dispatch branch; 8.6 replan); 8.7 docs and 8.8 a11y remaining.
 
 ## Goal
 
