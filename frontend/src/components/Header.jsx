@@ -39,7 +39,7 @@ export default function Header({ onReset, phase }) {
 
         {phase === 'results' && (
           <span style={s.statusBadge}>
-            <span style={s.statusDot} />
+            <span style={s.statusDot} aria-hidden="true" />
             SOLUTION READY
           </span>
         )}
@@ -94,35 +94,19 @@ export default function Header({ onReset, phase }) {
       </div>
 
       {menuOpen && (
-        <div className="page-mobile-menu" style={s.mobileMenu} role="menu">
+        <div className="page-mobile-menu" style={s.mobileMenu}>
           {NAV_LINKS.map((l) => (
-            <a
-              key={l.href}
-              href={l.href}
-              style={s.mobileLink}
-              role="menuitem"
-              onClick={() => setMenuOpen(false)}
-            >
+            <a key={l.href} href={l.href} style={s.mobileLink} onClick={() => setMenuOpen(false)}>
               {l.label}
             </a>
           ))}
           {user?.role === 'admin' && (
-            <a
-              href="/api-keys"
-              style={s.mobileLink}
-              role="menuitem"
-              onClick={() => setMenuOpen(false)}
-            >
+            <a href="/api-keys" style={s.mobileLink} onClick={() => setMenuOpen(false)}>
               API Keys
             </a>
           )}
           {user?.role === 'admin' && (
-            <a
-              href="/admin"
-              style={s.mobileLink}
-              role="menuitem"
-              onClick={() => setMenuOpen(false)}
-            >
+            <a href="/admin" style={s.mobileLink} onClick={() => setMenuOpen(false)}>
               Admin
             </a>
           )}
@@ -162,6 +146,7 @@ export default function Header({ onReset, phase }) {
                 toggleTheme()
                 setMenuOpen(false)
               }}
+              aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
               style={s.themeBtn}
             >
               {theme === 'dark' ? '☀' : '☾'}
@@ -180,6 +165,7 @@ export default function Header({ onReset, phase }) {
         <button
           onClick={toggleTheme}
           title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
           style={s.themeBtn}
         >
           {theme === 'dark' ? '☀' : '☾'}

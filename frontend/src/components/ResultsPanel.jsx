@@ -16,6 +16,31 @@ export default function ResultsPanel({
   const [tab, setTab] = useState('routes') // routes | unassigned | chart | directions | json
   const [copied, setCopied] = useState(false)
 
+  const TAB_DEFS = [
+    ['routes', `Routes (${result.vehicles_used})`],
+    ['unassigned', `Unassigned (${result.unassigned_count})`],
+    ['chart', 'Charts'],
+    ['directions', 'Directions'],
+    ['json', 'JSON'],
+  ]
+
+  const onTabsKeyDown = useCallback((e) => {
+    const tabs = Array.from(e.currentTarget.querySelectorAll('[role="tab"]'))
+    const idx = tabs.indexOf(document.activeElement)
+    if (idx === -1) return
+    let next
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = (idx + 1) % tabs.length
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp')
+      next = (idx - 1 + tabs.length) % tabs.length
+    else if (e.key === 'Home') next = 0
+    else if (e.key === 'End') next = tabs.length - 1
+    else return
+    e.preventDefault()
+    const key = tabs[next].id.replace('results-tab-', '')
+    setTab(key)
+    tabs[next].focus()
+  }, [])
+
   const handleShare = useCallback(() => {
     const url = new URL(window.location.href)
     url.searchParams.set('job', result.job_id)
@@ -56,6 +81,7 @@ export default function ResultsPanel({
       <div
         role="tablist"
         aria-label="Results sections"
+        onKeyDown={onTabsKeyDown}
         style={{
           display: 'flex',
           background: 'var(--bg-2)',
@@ -66,17 +92,13 @@ export default function ResultsPanel({
           overflowX: 'auto',
         }}
       >
-        {[
-          ['routes', `Routes (${result.vehicles_used})`],
-          ['unassigned', `Unassigned (${result.unassigned_count})`],
-          ['chart', 'Charts'],
-          ['directions', 'Directions'],
-          ['json', 'JSON'],
-        ].map(([key, label]) => (
+        {TAB_DEFS.map(([key, label]) => (
           <button
             key={key}
             role="tab"
+            id={`results-tab-${key}`}
             aria-selected={tab === key}
+            aria-controls={`results-panel-${key}`}
             onClick={() => setTab(key)}
             style={{
               padding: '10px 14px',
@@ -163,36 +185,71 @@ export default function ResultsPanel({
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
-        {tab === 'routes' && (
-          <RouteList
-            vehicles={result.vehicles}
-            selectedVehicle={selectedVehicle}
-            onSelect={onSelectVehicle}
-          />
-        )}
-        {tab === 'unassigned' && (
-          <UnassignedList unassigned={result.unassigned} labels={result.unassigned_labels} />
-        )}
-        {tab === 'chart' && <ChartsView vehicles={result.vehicles} />}
-        {tab === 'directions' &&
-          (selectedVehicle ? (
-            <RouteDetails
-              result={result}
+        <div
+          role="tabpanel"
+          id="results-panel-routes"
+          aria-labelledby="results-tab-routes"
+          hidden={tab !== 'routes'}
+        >
+          {tab === 'routes' && (
+            <RouteList
+              vehicles={result.vehicles}
               selectedVehicle={selectedVehicle}
-              onSelectVehicle={onSelectVehicle}
-              directions={directions}
-              onDirectionsChange={onDirectionsChange}
-              onFocusStep={onFocusStep}
+              onSelect={onSelectVehicle}
             />
-          ) : (
-            <div style={{ textAlign: 'center', padding: 40 }}>
-              <div style={{ fontSize: 28, marginBottom: 10 }}>🧭</div>
-              <p style={{ color: 'var(--text-2)', fontFamily: 'var(--mono)', fontSize: 12 }}>
-                Select a vehicle on the map or in the routes list to see turn-by-turn directions.
-              </p>
-            </div>
-          ))}
-        {tab === 'json' && <JsonView result={result} />}
+          )}
+        </div>
+        <div
+          role="tabpanel"
+          id="results-panel-unassigned"
+          aria-labelledby="results-tab-unassigned"
+          hidden={tab !== 'unassigned'}
+        >
+          {tab === 'unassigned' && (
+            <UnassignedList unassigned={result.unassigned} labels={result.unassigned_labels} />
+          )}
+        </div>
+        <div
+          role="tabpanel"
+          id="results-panel-chart"
+          aria-labelledby="results-tab-chart"
+          hidden={tab !== 'chart'}
+        >
+          {tab === 'chart' && <ChartsView vehicles={result.vehicles} />}
+        </div>
+        <div
+          role="tabpanel"
+          id="results-panel-directions"
+          aria-labelledby="results-tab-directions"
+          hidden={tab !== 'directions'}
+        >
+          {tab === 'directions' &&
+            (selectedVehicle ? (
+              <RouteDetails
+                result={result}
+                selectedVehicle={selectedVehicle}
+                onSelectVehicle={onSelectVehicle}
+                directions={directions}
+                onDirectionsChange={onDirectionsChange}
+                onFocusStep={onFocusStep}
+              />
+            ) : (
+              <div style={{ textAlign: 'center', padding: 40 }}>
+                <div style={{ fontSize: 28, marginBottom: 10 }}>🧭</div>
+                <p style={{ color: 'var(--text-2)', fontFamily: 'var(--mono)', fontSize: 12 }}>
+                  Select a vehicle on the map or in the routes list to see turn-by-turn directions.
+                </p>
+              </div>
+            ))}
+        </div>
+        <div
+          role="tabpanel"
+          id="results-panel-json"
+          aria-labelledby="results-tab-json"
+          hidden={tab !== 'json'}
+        >
+          {tab === 'json' && <JsonView result={result} />}
+        </div>
       </div>
     </div>
   )
