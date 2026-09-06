@@ -143,7 +143,7 @@ export default function ApiKeysPage() {
                 onClick={copyKey}
                 style={{
                   background: 'var(--accent)',
-                  color: '#000',
+                  color: 'var(--on-accent)',
                   border: 'none',
                   borderRadius: 'var(--radius)',
                   padding: '8px 14px',
@@ -230,7 +230,7 @@ export default function ApiKeysPage() {
               style={{
                 alignSelf: 'flex-start',
                 background: 'var(--accent)',
-                color: '#000',
+                color: 'var(--on-accent)',
                 border: 'none',
                 borderRadius: 'var(--radius)',
                 padding: '10px 20px',
