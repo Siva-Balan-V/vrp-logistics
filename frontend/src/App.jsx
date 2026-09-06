@@ -13,6 +13,7 @@ import HistoryPage from './pages/HistoryPage.jsx'
 import DashboardPage from './pages/DashboardPage.jsx'
 import DriversPage from './pages/DriversPage.jsx'
 import DriverDetailPage from './pages/DriverDetailPage.jsx'
+import DispatchPage from './pages/DispatchPage.jsx'
 import NotificationSettingsPage from './pages/NotificationSettingsPage.jsx'
 import BillingPage from './pages/BillingPage.jsx'
 import AdminPage from './pages/AdminPage.jsx'
@@ -50,6 +51,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <DriversPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dispatch"
+            element={
+              <ProtectedRoute>
+                <DispatchPage />
               </ProtectedRoute>
             }
           />
@@ -127,7 +136,8 @@ function AppContent() {
       setSolverProgress({ pct: data.pct || 0, message: data.message || '' })
     }
   }, [])
-  useWebSocket(runId, runId ? token : null, onWsMessage)
+  const wsPath = runId ? `/api/v1/ws/optimization/${runId}` : null
+  useWebSocket(wsPath, runId ? token : null, onWsMessage)
 
   // Load from URL on mount
   useEffect(() => {
