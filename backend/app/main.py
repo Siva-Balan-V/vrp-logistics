@@ -6,9 +6,10 @@ from contextlib import asynccontextmanager
 
 import structlog
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import select
 
 from app.config import get_settings
 from app.database import init_db, run_migrations, wait_for_db
@@ -145,8 +146,6 @@ def create_app() -> FastAPI:
         return {"message": "VRP Logistics Optimizer API", "docs": "/docs"}
 
     # ── WebSocket ─────────────────────────────────────────────────────────────
-    from fastapi import Query, WebSocket, WebSocketDisconnect
-
     @app.websocket("/api/v1/ws/optimization/{run_id}")
     async def ws_optimization(
         ws: WebSocket,
@@ -168,6 +167,45 @@ def create_app() -> FastAPI:
             manager.disconnect(run_id, ws)
         except Exception:
             manager.disconnect(run_id, ws)
+
+    from app.websocket_manager import live_manager
+
+    @app.websocket("/api/v1/ws/drivers/{company_id}")
+    async def ws_drivers_fleet(
+        ws: WebSocket,
+        company_id: str,
+        token: str = Query(default=""),
+    ):
+        """Fleet telemetry channel — tenant-scoped to the path company_id."""
+        from app.database import get_db
+        from app.models.db import User
+        from app.services.auth import decode_token
+
+        if not token:
+            await ws.close(code=4001)
+            return
+        payload = decode_token(token, expected_type="access")
+        if not payload or not payload.get("sub"):
+            await ws.close(code=4001)
+            return
+        user = None
+        async for db in get_db():
+            if db is None:
+                break
+            result = await db.execute(select(User).where(User.id == payload["sub"], User.is_active))
+            user = result.scalar_one_or_none()
+            break
+        if user is None or str(user.company_id) != company_id:
+            await ws.close(code=4001)
+            return
+        await live_manager.connect(str(company_id), ws)
+        try:
+            while True:
+                await ws.receive_text()
+        except WebSocketDisconnect:
+            live_manager.disconnect(str(company_id), ws)
+        except Exception:
+            live_manager.disconnect(str(company_id), ws)
 
     # ── Routers ───────────────────────────────────────────────────────────────
     app.include_router(auth_router)
