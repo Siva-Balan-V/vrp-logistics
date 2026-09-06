@@ -111,7 +111,10 @@ class VehicleRoute(BaseModel):
     distance_km: float
     time_minutes: float
     packages_delivered: int
-    waypoints: list[dict] = Field(default_factory=list, description="[{lat, lon, id}] for mapping")
+    waypoints: list[dict] = Field(
+        default_factory=list,
+        description="[{lat, lon, id, status}] for mapping — status is pending|en_route|arrived|delivered",
+    )
     arrival_times: list[int] = Field(default_factory=list, description="Scheduled arrival time (seconds) at each stop")
 
 
@@ -251,6 +254,13 @@ class DriverCreate(BaseModel):
 class DriverLocationUpdate(BaseModel):
     lat: float = Field(..., ge=-90, le=90)
     lon: float = Field(..., ge=-180, le=180)
+
+
+StopStatus = Literal["pending", "en_route", "arrived", "delivered"]
+
+
+class StopStatusUpdate(BaseModel):
+    status: StopStatus = Field(..., description="New stop status (pending → en_route → arrived → delivered)")
 
 
 class DriverAssignment(BaseModel):
