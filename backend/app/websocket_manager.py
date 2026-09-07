@@ -50,3 +50,4 @@ class ConnectionManager:
 
 
 manager = ConnectionManager()
+live_manager = ConnectionManager()

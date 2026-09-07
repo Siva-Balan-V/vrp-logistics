@@ -123,6 +123,64 @@ def set_matrix(
 _job_cache: LRUCache = LRUCache(maxsize=200)
 
 
+# Per-leg turn-by-turn directions cache (separate LRU so matrix entries
+# are not evicted; TTL is long because route geometry rarely changes)
+_directions_cache: LRUCache = LRUCache(maxsize=200)
+
+
+def _directions_key(backend: str, origin: tuple[float, float], dest: tuple[float, float]) -> str:
+    raw = json.dumps({"backend": backend, "origin": origin, "dest": dest}, sort_keys=True)
+    return "dir:" + hashlib.sha256(raw.encode()).hexdigest()
+
+
+def get_directions(
+    backend: str,
+    origin: tuple[float, float],
+    dest: tuple[float, float],
+) -> dict | None:
+    key = _directions_key(backend, origin, dest)
+
+    if _redis_client:
+        try:
+            data = _redis_client.get(key)
+            if data:
+                logger.info("cache_hit_directions_redis", key=key[:24])
+                return json.loads(data)
+        except Exception as exc:
+            logger.warning("redis_directions_get_error", error=str(exc))
+
+    val = _directions_cache.get(key)
+    if val is not None:
+        logger.info("cache_hit_directions_lru", key=key[:24])
+        return val
+
+    return None
+
+
+def set_directions(
+    backend: str,
+    origin: tuple[float, float],
+    dest: tuple[float, float],
+    value: dict,
+    ttl_seconds: int = 86400,
+) -> None:
+    key = _directions_key(backend, origin, dest)
+
+    # Normalize DirectionStep models to plain dicts so both the in-process LRU
+    # and Redis keep JSON-serializable, raw entries.
+    value = dict(value)
+    value["steps"] = [step.model_dump() if hasattr(step, "model_dump") else step for step in value.get("steps", [])]
+
+    _directions_cache[key] = value
+
+    if _redis_client:
+        try:
+            _redis_client.setex(key, ttl_seconds, json.dumps(value))
+            logger.info("cache_set_directions_redis", key=key[:24], ttl=ttl_seconds)
+        except Exception as exc:
+            logger.warning("redis_directions_set_error", error=str(exc))
+
+
 def _job_key(company_id, job_id: str) -> tuple[str, str]:
     return str(company_id), job_id
 

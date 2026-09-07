@@ -20,9 +20,18 @@ from app.models.schemas import (
     DriverAssignment,
     DriverCreate,
     DriverLocationUpdate,
+    StopStatusUpdate,
 )
 from app.services.eta import compute_live_eta
+from app.services.live_dispatch import broadcast_driver_location
 from app.services.notifications import send_notification
+from app.services.stop_lifecycle import (
+    InvalidStopTransitionError,
+    find_waypoint,
+    notify_stop_event,
+    persist_stop_status,
+    set_stop_status,
+)
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/api/v1/drivers", tags=["drivers"])
@@ -131,6 +140,14 @@ async def update_driver_location(
 
     await db.flush()
     route = await _get_assigned_route(db, driver_id)
+    try:
+        await broadcast_driver_location(
+            driver,
+            user.company_id,
+            route.get("route") if route else None,
+        )
+    except Exception:
+        logger.exception("driver_location_broadcast_failed", driver_id=str(driver_id))
     return _driver_to_response(driver, route)
 
 
@@ -202,3 +219,57 @@ async def get_driver_eta(
         backend=cfg.ROUTING_BACKEND,
     )
     return eta
+
+
+@router.post("/{driver_id}/stops/{stop_id}/status")
+async def update_stop_status(
+    driver_id: uuid.UUID,
+    stop_id: int,
+    body: StopStatusUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_user),
+) -> dict:
+    """Advance a stop through its lifecycle (pending → en_route → arrived → delivered)."""
+    result = await db.execute(select(Driver).where(Driver.id == driver_id, Driver.company_id == user.company_id))
+    driver = result.scalar_one_or_none()
+    if not driver:
+        raise HTTPException(404, "Driver not found")
+
+    route = await _get_assigned_route(db, driver_id)
+    if not route:
+        raise HTTPException(404, "No route assigned")
+
+    route_data = route.get("route", {})
+    waypoint = find_waypoint(route_data, stop_id)
+    if waypoint is None:
+        raise HTTPException(404, "Stop not found on assigned route")
+    previous_status = waypoint.get("status", "pending")
+    try:
+        set_stop_status(route_data, stop_id, body.status, validate=True)
+    except InvalidStopTransitionError as exc:
+        raise HTTPException(409, f"Invalid transition from {exc.current} to {exc.requested}") from exc
+
+    await persist_stop_status(db, user.company_id, route["job_id"], route["vehicle_id"], stop_id, body.status)
+
+    cfg = get_settings()
+    triggered = await notify_stop_event(
+        db=db,
+        company_id=user.company_id,
+        driver_id=driver_id,
+        driver=driver,
+        route=route_data,
+        new_status=body.status,
+        backend=cfg.ROUTING_BACKEND,
+        threshold_min=cfg.NOTIFY_DELAY_THRESHOLD_MIN,
+    )
+    logger.info("stop_status_updated", driver_id=str(driver_id), stop_id=stop_id, status=body.status)
+
+    return {
+        "driver_id": str(driver_id),
+        "job_id": route["job_id"],
+        "vehicle_id": route["vehicle_id"],
+        "stop_id": stop_id,
+        "previous_status": previous_status,
+        "status": body.status,
+        "notifications": triggered,
+    }

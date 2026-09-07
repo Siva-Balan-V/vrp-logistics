@@ -21,11 +21,19 @@ async def persist_job(
     company_id: uuid.UUID,
     req: OptimizeRequest,
     resp: OptimizeResponse,
+    previous_job_id: str | None = None,
 ) -> None:
     """Save optimization job and results to PostgreSQL."""
+    prev = None
+    if previous_job_id:
+        try:
+            prev = uuid.UUID(previous_job_id)
+        except (ValueError, AttributeError, TypeError):
+            prev = None
     job = OptimizationJob(
         job_id=uuid.UUID(resp.job_id),
         company_id=company_id,
+        previous_job_id=prev,
         status=resp.status,
         n_locations=resp.total_locations,
         n_vehicles=resp.vehicles_used,

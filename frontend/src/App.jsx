@@ -13,6 +13,7 @@ import HistoryPage from './pages/HistoryPage.jsx'
 import DashboardPage from './pages/DashboardPage.jsx'
 import DriversPage from './pages/DriversPage.jsx'
 import DriverDetailPage from './pages/DriverDetailPage.jsx'
+import DispatchPage from './pages/DispatchPage.jsx'
 import NotificationSettingsPage from './pages/NotificationSettingsPage.jsx'
 import BillingPage from './pages/BillingPage.jsx'
 import AdminPage from './pages/AdminPage.jsx'
@@ -50,6 +51,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <DriversPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dispatch"
+            element={
+              <ProtectedRoute>
+                <DispatchPage />
               </ProtectedRoute>
             }
           />
@@ -115,6 +124,8 @@ function AppContent() {
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
   const [selectedVehicle, setSelectedVehicle] = useState(null)
+  const [directions, setDirections] = useState(null)
+  const [focusPoint, setFocusPoint] = useState(null)
   const [solverProgress, setSolverProgress] = useState({ pct: 0, message: '' })
   const [runId, setRunId] = useState(null)
   const loadedRef = useRef(false)
@@ -125,7 +136,8 @@ function AppContent() {
       setSolverProgress({ pct: data.pct || 0, message: data.message || '' })
     }
   }, [])
-  useWebSocket(runId, runId ? token : null, onWsMessage)
+  const wsPath = runId ? `/api/v1/ws/optimization/${runId}` : null
+  useWebSocket(wsPath, runId ? token : null, onWsMessage)
 
   // Load from URL on mount
   useEffect(() => {
@@ -153,6 +165,8 @@ function AppContent() {
       setError(null)
       setResult(null)
       setSelectedVehicle(null)
+      setDirections(null)
+      setFocusPoint(null)
       setSolverProgress({ pct: 0, message: 'Request queued...' })
 
       try {
@@ -173,6 +187,9 @@ function AppContent() {
     [token, setSearchParams],
   )
 
+  const handleDirectionsChange = useCallback((d) => setDirections(d), [])
+  const handleFocusStep = useCallback((pt) => setFocusPoint(pt), [])
+
   const handleReset = useCallback(() => {
     setRunId(null)
     setPhase('idle')
@@ -180,6 +197,8 @@ function AppContent() {
     setResult(null)
     setError(null)
     setSelectedVehicle(null)
+    setDirections(null)
+    setFocusPoint(null)
     setSolverProgress({ pct: 0, message: '' })
     loadedRef.current = false
     setSearchParams({}, { replace: true })
@@ -212,6 +231,9 @@ function AppContent() {
               result={result}
               selectedVehicle={selectedVehicle}
               onSelectVehicle={setSelectedVehicle}
+              directions={directions}
+              onDirectionsChange={handleDirectionsChange}
+              onFocusStep={handleFocusStep}
             />
             <MapView
               result={result}
@@ -220,6 +242,8 @@ function AppContent() {
               deliveries={jobData?.deliveries}
               selectedVehicle={selectedVehicle}
               onSelectVehicle={setSelectedVehicle}
+              directions={directions}
+              focusPoint={focusPoint}
             />
           </>
         )}

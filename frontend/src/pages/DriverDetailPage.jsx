@@ -419,7 +419,7 @@ export default function DriverDetailPage() {
                     onClick={handleAssign}
                     style={{
                       background: 'var(--accent)',
-                      color: '#000',
+                      color: 'var(--on-accent)',
                       fontWeight: 600,
                       border: 'none',
                       borderRadius: 'var(--radius)',

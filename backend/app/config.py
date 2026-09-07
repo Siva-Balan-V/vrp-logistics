@@ -79,6 +79,9 @@ class Settings(BaseSettings):
     OSRM_BATCH_SIZE: int = 100  # Max locations per OSRM request
     ORS_BATCH_SIZE: int = 50
 
+    # Dispatch / stop lifecycle
+    NOTIFY_DELAY_THRESHOLD_MIN: float = 15.0  # Live-ETA delay (min) that triggers a "delayed" notification
+
     class Config:
         env_file = ".env"
         case_sensitive = True

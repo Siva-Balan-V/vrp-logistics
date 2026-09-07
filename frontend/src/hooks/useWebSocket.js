@@ -8,16 +8,16 @@ function wsUrl(path) {
   return `${proto}://${host}${path}`
 }
 
-export default function useWebSocket(runId, token, onMessage) {
+export default function useWebSocket(path, token, onMessage) {
   const wsRef = useRef(null)
   const reconnectTimer = useRef(null)
   const mountedRef = useRef(true)
 
   const connect = useCallback(() => {
-    if (!runId || !token) return
+    if (!path || !token) return
     if (wsRef.current) wsRef.current.close()
 
-    const url = `${wsUrl(`/api/v1/ws/optimization/${runId}`)}?token=${encodeURIComponent(token)}`
+    const url = `${wsUrl(path)}?token=${encodeURIComponent(token)}`
     const ws = new WebSocket(url)
     wsRef.current = ws
 
@@ -42,11 +42,11 @@ export default function useWebSocket(runId, token, onMessage) {
     ws.onclose = () => {
       if (wsRef.current !== ws) return
       wsRef.current = null
-      if (mountedRef.current && runId) {
+      if (mountedRef.current && path) {
         reconnectTimer.current = setTimeout(connect, 2000)
       }
     }
-  }, [runId, token, onMessage])
+  }, [path, token, onMessage])
 
   useEffect(() => {
     mountedRef.current = true
