@@ -1,6 +1,9 @@
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
+
+VALID_ROUTING_BACKENDS = ("osrm", "ors", "haversine")
 
 
 class Settings(BaseSettings):
@@ -79,8 +82,15 @@ class Settings(BaseSettings):
     OSRM_BATCH_SIZE: int = 100  # Max locations per OSRM request
     ORS_BATCH_SIZE: int = 50
 
-    # Dispatch / stop lifecycle
+# Dispatch / stop lifecycle
     NOTIFY_DELAY_THRESHOLD_MIN: float = 15.0  # Live-ETA delay (min) that triggers a "delayed" notification
+
+    @field_validator("ROUTING_BACKEND")
+    @classmethod
+    def validate_routing_backend(cls, v: str) -> str:
+        if v not in VALID_ROUTING_BACKENDS:
+            raise ValueError(f"ROUTING_BACKEND must be one of {VALID_ROUTING_BACKENDS}, got {v!r}")
+        return v
 
     class Config:
         env_file = ".env"

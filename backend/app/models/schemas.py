@@ -4,6 +4,9 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+# Backends supported by the routing engine (OSRM, OpenRouteService, haversine)
+RoutingBackend = Literal["haversine", "osrm", "ors"]
+
 # ─────────────────────────────────────────────
 # INPUT SCHEMAS
 # ─────────────────────────────────────────────
@@ -55,7 +58,7 @@ class OptimizeRequest(BaseModel):
     depots: list[Location] = Field(default=[], description="Depot locations (at least one required)")
     deliveries: list[Location] = Field(..., min_length=1, max_length=1000, description="Delivery stop locations")
     vehicles: VehicleSpec = Field(default_factory=VehicleSpec)
-    routing_backend: Literal["haversine", "osrm", "ors"] | None = Field(
+    routing_backend: RoutingBackend | None = Field(
         default=None, description="Override routing backend: osrm | ors | haversine"
     )
     traffic: bool = Field(default=False, description="Use real-time traffic data (ORS only; requires ORS_API_KEY)")
@@ -173,7 +176,7 @@ class OptimizeResponse(BaseModel):
     vehicles: list[VehicleRoute]
     unassigned: list[int] = Field(default_factory=list, description="IDs of unserved locations")
     unassigned_labels: list[str | None] = Field(default_factory=list)
-    matrix_source: str = Field(description="Distance matrix source used")
+    matrix_source: RoutingBackend = Field(description="Distance matrix source used")
     fuel_cost: float = Field(default=0.0, description="Estimated fuel cost ($)")
     driver_cost: float = Field(default=0.0, description="Estimated driver cost ($)")
     total_cost: float = Field(default=0.0, description="Total estimated cost ($)")
@@ -210,7 +213,7 @@ class ErrorResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str = "ok"
     version: str
-    routing_backend: str
+    routing_backend: RoutingBackend
     redis_connected: bool = False
 
 
