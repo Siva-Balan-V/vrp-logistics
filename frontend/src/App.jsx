@@ -13,12 +13,13 @@ import HistoryPage from './pages/HistoryPage.jsx'
 import DashboardPage from './pages/DashboardPage.jsx'
 import DriversPage from './pages/DriversPage.jsx'
 import DriverDetailPage from './pages/DriverDetailPage.jsx'
+import DispatchPage from './pages/DispatchPage.jsx'
 import NotificationSettingsPage from './pages/NotificationSettingsPage.jsx'
 import BillingPage from './pages/BillingPage.jsx'
 import AdminPage from './pages/AdminPage.jsx'
 import ApiKeysPage from './pages/ApiKeysPage.jsx'
 import useWebSocket from './hooks/useWebSocket.js'
-import { optimizeRoutes, getJobResult, getOptimizationStatus } from './api.js'
+import { optimizeRoutes, getJobResult } from './api.js'
 import { useAuth } from './context/AuthContext.jsx'
 import { ThemeProvider } from './context/ThemeContext.jsx'
 
@@ -50,6 +51,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <DriversPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dispatch"
+            element={
+              <ProtectedRoute>
+                <DispatchPage />
               </ProtectedRoute>
             }
           />
@@ -115,6 +124,8 @@ function AppContent() {
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
   const [selectedVehicle, setSelectedVehicle] = useState(null)
+  const [directions, setDirections] = useState(null)
+  const [focusPoint, setFocusPoint] = useState(null)
   const [solverProgress, setSolverProgress] = useState({ pct: 0, message: '' })
   const [runId, setRunId] = useState(null)
   const loadedRef = useRef(false)
@@ -125,28 +136,8 @@ function AppContent() {
       setSolverProgress({ pct: data.pct || 0, message: data.message || '' })
     }
   }, [])
-  const wsConnected = useWebSocket(runId, runId ? token : null, onWsMessage)
-
-  // Fallback: poll the status endpoint when the websocket is unavailable
-  useEffect(() => {
-    if (phase !== 'solving' || !runId || !token) return
-    if (wsConnected) return
-    let stopped = false
-    const timer = setInterval(async () => {
-      try {
-        const status = await getOptimizationStatus(runId, token)
-        if (!stopped && status.status === 'running' && status.pct != null) {
-          setSolverProgress({ pct: status.pct, message: status.message })
-        }
-      } catch {
-        // best-effort fallback
-      }
-    }, 3000)
-    return () => {
-      stopped = true
-      clearInterval(timer)
-    }
-  }, [phase, runId, token, wsConnected])
+  const wsPath = runId ? `/api/v1/ws/optimization/${runId}` : null
+  useWebSocket(wsPath, runId ? token : null, onWsMessage)
 
   // Load from URL on mount
   useEffect(() => {
@@ -174,6 +165,8 @@ function AppContent() {
       setError(null)
       setResult(null)
       setSelectedVehicle(null)
+      setDirections(null)
+      setFocusPoint(null)
       setSolverProgress({ pct: 0, message: 'Request queued...' })
 
       try {
@@ -194,6 +187,9 @@ function AppContent() {
     [token, setSearchParams],
   )
 
+  const handleDirectionsChange = useCallback((d) => setDirections(d), [])
+  const handleFocusStep = useCallback((pt) => setFocusPoint(pt), [])
+
   const handleReset = useCallback(() => {
     setRunId(null)
     setPhase('idle')
@@ -201,6 +197,8 @@ function AppContent() {
     setResult(null)
     setError(null)
     setSelectedVehicle(null)
+    setDirections(null)
+    setFocusPoint(null)
     setSolverProgress({ pct: 0, message: '' })
     loadedRef.current = false
     setSearchParams({}, { replace: true })
@@ -233,6 +231,9 @@ function AppContent() {
               result={result}
               selectedVehicle={selectedVehicle}
               onSelectVehicle={setSelectedVehicle}
+              directions={directions}
+              onDirectionsChange={handleDirectionsChange}
+              onFocusStep={handleFocusStep}
             />
             <MapView
               result={result}
@@ -241,17 +242,19 @@ function AppContent() {
               deliveries={jobData?.deliveries}
               selectedVehicle={selectedVehicle}
               onSelectVehicle={setSelectedVehicle}
+              directions={directions}
+              focusPoint={focusPoint}
             />
           </>
         )}
 
-        {phase === 'solving' && <SolvingScreen progress={solverProgress} live={wsConnected} />}
+        {phase === 'solving' && <SolvingScreen progress={solverProgress} />}
       </main>
     </div>
   )
 }
 
-function SolvingScreen({ progress, live }) {
+function SolvingScreen({ progress }) {
   return (
     <div
       style={{
@@ -295,17 +298,6 @@ function SolvingScreen({ progress, live }) {
           {progress.message || 'Solving...'}
         </p>
       </div>
-      <p
-        style={{
-          fontFamily: 'var(--mono)',
-          fontSize: 10,
-          textAlign: 'center',
-          color: live ? 'var(--green)' : 'var(--red)',
-          marginTop: -8,
-        }}
-      >
-        {live ? '● Live progress connected' : '○ Live progress unavailable — retrying via polling…'}
-      </p>
       <div
         style={{
           display: 'grid',

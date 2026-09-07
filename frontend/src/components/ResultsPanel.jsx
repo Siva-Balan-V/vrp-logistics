@@ -1,12 +1,45 @@
-import { useState, useCallback, useEffect } from 'react'
-import { vehicleColor, exportRoute, getRouteDirections } from '../api.js'
+import { useState, useCallback } from 'react'
+import { vehicleColor, exportRoute } from '../api.js'
+import RouteDetails from './RouteDetails.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
-export default function ResultsPanel({ result, selectedVehicle, onSelectVehicle }) {
+export default function ResultsPanel({
+  result,
+  selectedVehicle,
+  onSelectVehicle,
+  directions,
+  onDirectionsChange,
+  onFocusStep,
+}) {
   const { token } = useAuth()
-  const [tab, setTab] = useState('routes') // routes | unassigned | chart | json
+  const [tab, setTab] = useState('routes') // routes | unassigned | chart | directions | json
   const [copied, setCopied] = useState(false)
+
+  const TAB_DEFS = [
+    ['routes', `Routes (${result.vehicles_used})`],
+    ['unassigned', `Unassigned (${result.unassigned_count})`],
+    ['chart', 'Charts'],
+    ['directions', 'Directions'],
+    ['json', 'JSON'],
+  ]
+
+  const onTabsKeyDown = useCallback((e) => {
+    const tabs = Array.from(e.currentTarget.querySelectorAll('[role="tab"]'))
+    const idx = tabs.indexOf(document.activeElement)
+    if (idx === -1) return
+    let next
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = (idx + 1) % tabs.length
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp')
+      next = (idx - 1 + tabs.length) % tabs.length
+    else if (e.key === 'Home') next = 0
+    else if (e.key === 'End') next = tabs.length - 1
+    else return
+    e.preventDefault()
+    const key = tabs[next].id.replace('results-tab-', '')
+    setTab(key)
+    tabs[next].focus()
+  }, [])
 
   const handleShare = useCallback(() => {
     const url = new URL(window.location.href)
@@ -33,15 +66,6 @@ export default function ResultsPanel({ result, selectedVehicle, onSelectVehicle 
     [result.job_id, token],
   )
 
-  const hasDirections = result.matrix_source === 'osrm' || result.matrix_source === 'ors'
-  const tabs = [
-    ['routes', `Routes (${result.vehicles_used})`],
-    ['unassigned', `Unassigned (${result.unassigned_count})`],
-    ...(hasDirections ? [['directions', 'Directions']] : []),
-    ['chart', 'Charts'],
-    ['json', 'JSON'],
-  ]
-
   return (
     <div
       style={{
@@ -57,6 +81,7 @@ export default function ResultsPanel({ result, selectedVehicle, onSelectVehicle 
       <div
         role="tablist"
         aria-label="Results sections"
+        onKeyDown={onTabsKeyDown}
         style={{
           display: 'flex',
           background: 'var(--bg-2)',
@@ -67,11 +92,13 @@ export default function ResultsPanel({ result, selectedVehicle, onSelectVehicle 
           overflowX: 'auto',
         }}
       >
-        {tabs.map(([key, label]) => (
+        {TAB_DEFS.map(([key, label]) => (
           <button
             key={key}
             role="tab"
+            id={`results-tab-${key}`}
             aria-selected={tab === key}
+            aria-controls={`results-panel-${key}`}
             onClick={() => setTab(key)}
             style={{
               padding: '10px 14px',
@@ -92,7 +119,6 @@ export default function ResultsPanel({ result, selectedVehicle, onSelectVehicle 
           <button
             onClick={handleShare}
             aria-label="Copy shareable link"
-            title="Copies a link to this job. Recipients must log in to view it."
             style={{
               padding: '5px 10px',
               fontSize: 10,
@@ -138,224 +164,95 @@ export default function ResultsPanel({ result, selectedVehicle, onSelectVehicle 
           >
             GPX
           </button>
+          <button
+            onClick={() => handleExport('kml')}
+            aria-label="Export as KML"
+            style={{
+              padding: '5px 10px',
+              fontSize: 10,
+              fontFamily: 'var(--mono)',
+              background: 'var(--bg-3)',
+              color: 'var(--text-2)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
+              cursor: 'pointer',
+            }}
+          >
+            KML
+          </button>
         </div>
       </div>
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
-        {tab === 'routes' && (
-          <RouteList
-            vehicles={result.vehicles}
-            selectedVehicle={selectedVehicle}
-            onSelect={onSelectVehicle}
-          />
-        )}
-        {tab === 'unassigned' && (
-          <UnassignedList unassigned={result.unassigned} labels={result.unassigned_labels} />
-        )}
-        {tab === 'chart' && <ChartsView vehicles={result.vehicles} />}
-        {tab === 'json' && <JsonView result={result} />}
-        {tab === 'directions' && (
-          <DirectionsView jobId={result.job_id} selectedVehicle={selectedVehicle} />
-        )}
-      </div>
-    </div>
-  )
-}
-
-function DirectionsView({ jobId, selectedVehicle }) {
-  const { token } = useAuth()
-  const [data, setData] = useState(null)
-  const [status, setStatus] = useState('loading') // loading | error | ready
-
-  useEffect(() => {
-    let mounted = true
-    setStatus('loading')
-    setData(null)
-    getRouteDirections(jobId, selectedVehicle ?? undefined, token)
-      .then((d) => {
-        if (!mounted) return
-        setData(d)
-        setStatus('ready')
-      })
-      .catch((err) => {
-        if (!mounted) return
-        console.error('Directions fetch failed:', err)
-        setStatus('error')
-      })
-    return () => {
-      mounted = false
-    }
-  }, [jobId, selectedVehicle, token])
-
-  if (status === 'loading') {
-    return (
-      <div style={{ textAlign: 'center', padding: 40 }}>
-        <p style={{ color: 'var(--text-3)', fontFamily: 'var(--mono)', fontSize: 11 }}>
-          Loading turn-by-turn directions…
-        </p>
-      </div>
-    )
-  }
-
-  if (status === 'error') {
-    return (
-      <div style={{ textAlign: 'center', padding: 40 }}>
-        <p style={{ color: 'var(--red)', fontFamily: 'var(--mono)', fontSize: 11 }}>
-          ✗ Could not load directions
-        </p>
-      </div>
-    )
-  }
-
-  if (!data || !data.vehicles || !data.vehicles.length) {
-    return (
-      <div style={{ textAlign: 'center', padding: 40 }}>
-        <p style={{ color: 'var(--text-3)', fontFamily: 'var(--mono)', fontSize: 11 }}>
-          {data?.note || 'No directions available for this job.'}
-        </p>
-      </div>
-    )
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {data.vehicles.map((vehicle, vi) => (
         <div
-          key={vehicle.vehicle_id}
-          style={{
-            background: 'var(--bg-2)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)',
-            padding: '10px 12px',
-          }}
+          role="tabpanel"
+          id="results-panel-routes"
+          aria-labelledby="results-tab-routes"
+          hidden={tab !== 'routes'}
         >
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: 8,
-            }}
-          >
-            <span
-              style={{
-                fontFamily: 'var(--mono)',
-                fontSize: 11,
-                fontWeight: 600,
-                color: vehicleColor(vi),
-              }}
-            >
-              VEHICLE {vehicle.vehicle_id}
-            </span>
-            <span style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--text-3)' }}>
-              {vehicle.legs.length} legs
-            </span>
-          </div>
-          {vehicle.legs.map((leg, li) => (
-            <div
-              key={li}
-              style={{
-                borderTop: li === 0 ? 'none' : '1px solid var(--border)',
-                paddingTop: li === 0 ? 0 : 8,
-                marginTop: li === 0 ? 0 : 8,
-              }}
-            >
-              <LegHeader leg={leg} index={li} />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 4 }}>
-                {leg.steps.length === 0 && (
-                  <span style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--text-3)' }}>
-                    No navigation steps for this leg.
-                  </span>
-                )}
-                {leg.steps.map((step, si) => (
-                  <div
-                    key={si}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'baseline',
-                      gap: 6,
-                      padding: '2px 4px',
-                      borderRadius: 3,
-                      fontSize: 10,
-                      fontFamily: 'var(--mono)',
-                      color: 'var(--text-2)',
-                    }}
-                  >
-                    <span style={{ color: 'var(--text-3)', flexShrink: 0, width: 14 }}>
-                      {si + 1}
-                    </span>
-                    <span style={{ color: 'var(--text)', flex: 1 }}>{step.instruction}</span>
-                    <span style={{ color: 'var(--text-3)', flexShrink: 0 }}>
-                      {formatDistance(step.distance_m)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
+          {tab === 'routes' && (
+            <RouteList
+              vehicles={result.vehicles}
+              selectedVehicle={selectedVehicle}
+              onSelect={onSelectVehicle}
+            />
+          )}
         </div>
-      ))}
-    </div>
-  )
-}
-
-function LegHeader({ leg, index }) {
-  const fromName = leg.from_stop?.label || `#${leg.from_stop?.id ?? '?'}`
-  const toName = leg.to_stop?.label || `#${leg.to_stop?.id ?? '?'}`
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <span
-        style={{
-          fontFamily: 'var(--mono)',
-          fontSize: 9,
-          color: 'var(--text-3)',
-          width: 34,
-          flexShrink: 0,
-        }}
-      >
-        LEG {index + 1}
-      </span>
-      <span
-        style={{
-          fontSize: 11,
-          fontFamily: 'var(--mono)',
-          color: 'var(--accent)',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {fromName} → {toName}
-      </span>
-      {leg.distance_km != null && (
-        <span
-          style={{
-            fontSize: 10,
-            fontFamily: 'var(--mono)',
-            color: 'var(--text-3)',
-            marginLeft: 'auto',
-            flexShrink: 0,
-          }}
+        <div
+          role="tabpanel"
+          id="results-panel-unassigned"
+          aria-labelledby="results-tab-unassigned"
+          hidden={tab !== 'unassigned'}
         >
-          {formatDistance(leg.distance_km * 1000)}
-          {leg.duration_s != null ? ` · ${formatDuration(leg.duration_s)}` : ''}
-        </span>
-      )}
+          {tab === 'unassigned' && (
+            <UnassignedList unassigned={result.unassigned} labels={result.unassigned_labels} />
+          )}
+        </div>
+        <div
+          role="tabpanel"
+          id="results-panel-chart"
+          aria-labelledby="results-tab-chart"
+          hidden={tab !== 'chart'}
+        >
+          {tab === 'chart' && <ChartsView vehicles={result.vehicles} />}
+        </div>
+        <div
+          role="tabpanel"
+          id="results-panel-directions"
+          aria-labelledby="results-tab-directions"
+          hidden={tab !== 'directions'}
+        >
+          {tab === 'directions' &&
+            (selectedVehicle ? (
+              <RouteDetails
+                result={result}
+                selectedVehicle={selectedVehicle}
+                onSelectVehicle={onSelectVehicle}
+                directions={directions}
+                onDirectionsChange={onDirectionsChange}
+                onFocusStep={onFocusStep}
+              />
+            ) : (
+              <div style={{ textAlign: 'center', padding: 40 }}>
+                <div style={{ fontSize: 28, marginBottom: 10 }}>🧭</div>
+                <p style={{ color: 'var(--text-2)', fontFamily: 'var(--mono)', fontSize: 12 }}>
+                  Select a vehicle on the map or in the routes list to see turn-by-turn directions.
+                </p>
+              </div>
+            ))}
+        </div>
+        <div
+          role="tabpanel"
+          id="results-panel-json"
+          aria-labelledby="results-tab-json"
+          hidden={tab !== 'json'}
+        >
+          {tab === 'json' && <JsonView result={result} />}
+        </div>
+      </div>
     </div>
   )
-}
-
-function formatDistance(meters) {
-  if (meters == null) return ''
-  if (meters >= 1000) return `${(meters / 1000).toFixed(1)} km`
-  return `${Math.round(meters)} m`
-}
-
-function formatDuration(seconds) {
-  if (seconds == null) return ''
-  if (seconds >= 60) return `${Math.round(seconds / 60)} min`
-  return `${Math.round(seconds)} s`
 }
 
 function RouteList({ vehicles, selectedVehicle, onSelect }) {

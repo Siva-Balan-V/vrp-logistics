@@ -1,248 +1,243 @@
 """
 Turn-by-turn directions service.
 
-Fetches per-leg navigation steps (OSRM / ORS), caches them, and assembles
-per-vehicle step lists for a finished optimization job. Fail-soft: a missing
-or failing routing backend produces empty steps instead of breaking the job.
+Generates step-by-step driving instructions between consecutive stops using the
+same routing backend that produced the distance matrix:
+
+  - OSRM        → `/route/v1/driving` with `steps=true` (public or self-hosted)
+  - ORS         → `/v2/directions/driving-car` with API key
+  - Haversine   → single "proceed to waypoint" step fallback (no API needed)
+
+Each leg is cached by (backend, origin, dest). A per-leg result carries the
+maneuver steps plus the full driving geometry as a [[lon, lat], ...] polyline.
 """
 
 from __future__ import annotations
 
-from typing import Any
+import asyncio
 
 import httpx
 import structlog
 
 from app.config import get_settings
+from app.models.schemas import DirectionStep
 from app.services import cache
+from app.services.distance_matrix import haversine_km
 
 logger = structlog.get_logger(__name__)
-
-_TIMEOUT = 10.0
-
-HEAD_MODIFIERS = {"left", "right", "slight left", "slight right", "sharp left", "sharp right", "straight"}
-
-OSRM_INSTRUCTIONS: dict[str, str] = {
-    "depart": "Head {mod}",
-    "turn": "Turn {mod}",
-    "continue": "Continue {mod}",
-    "new name": "Continue {mod}",
-    "end of road": "Turn {mod} at the end of the road",
-    "fork": "Keep {mod}",
-    "merge": "Merge {mod}",
-    "on ramp": "Take the ramp {mod}",
-    "off ramp": "Take the exit {mod}",
-    "roundabout": "In the roundabout take the {mod} exit",
-    "rotary": "In the rotary take the {mod} exit",
-    "roundabout turn": "At the roundabout turn {mod}",
-    "exit roundabout": "Exit the roundabout",
-    "exit rotary": "Exit the rotary",
-    "uturn": "Make a U-turn",
-    "arrive": "Arrive at your destination",
-}
+settings = get_settings()
 
 
-def _safe_modifier(modifier: str | None) -> str:
-    return modifier if modifier in HEAD_MODIFIERS else "straight"
+# ─────────────────────────────────────────────────────────────────────────────
+# OSRM
+# ─────────────────────────────────────────────────────────────────────────────
 
 
-def build_osrm_instruction(step: dict[str, Any]) -> str:
-    """Build a human-readable instruction string from an OSRM step."""
-    maneuver = step.get("maneuver") or {}
-    mtype = maneuver.get("type") or "continue"
-    mod = _safe_modifier(maneuver.get("modifier"))
+def _osrm_instruction(step: dict) -> str:
+    """Build a human-readable instruction from an OSRM step."""
+    man = step.get("maneuver") or {}
+    mtype = man.get("type") or ""
+    modifier = man.get("modifier") or ""
     name = (step.get("name") or "").strip()
 
-    if mtype in ("roundabout", "rotary"):
-        exit_idx = int(step.get("exits") or 0)
-        if exit_idx:
-            text = f"In the roundabout take exit {exit_idx}"
-        else:
-            text = OSRM_INSTRUCTIONS.get(mtype, "Continue {mod}").format(mod=mod)
-    else:
-        text = OSRM_INSTRUCTIONS.get(mtype, "Continue {mod}").format(mod=mod)
+    if mtype in ("depart", "arrive"):
+        return f"{mtype.capitalize()} {name}".strip() if name else mtype.capitalize()
 
-    if mtype in ("exit roundabout", "exit rotary", "uturn", "arrive"):
-        base = text
-    elif name:
-        base = f"{text} onto {name}"
-    else:
-        base = text
-    return base
+    if modifier and name:
+        return f"{modifier} onto {name}"
+    if name:
+        return f"Follow {name}"
+    if modifier:
+        return f"Turn {modifier}"
+    return "Continue"
 
 
-def _normalize_osrm_step(step: dict[str, Any]) -> dict[str, Any]:
-    maneuver = step.get("maneuver") or {}
-    loc = maneuver.get("location")
-    return {
-        "instruction": build_osrm_instruction(step),
-        "name": (step.get("name") or None),
-        "distance_m": round(float(step.get("distance") or 0.0), 1),
-        "duration_s": round(float(step.get("duration") or 0.0), 1),
-        "maneuver": maneuver.get("type"),
-        "modifier": maneuver.get("modifier"),
-        "location": [loc[1], loc[0]] if loc else None,  # OSRM is [lon, lat]; expose [lat, lon]
-    }
-
-
-async def _fetch_osrm_leg(
-    client: httpx.AsyncClient,
-    lon1: float,
-    lat1: float,
-    lon2: float,
-    lat2: float,
-) -> dict[str, Any] | None:
-    settings = get_settings()
-    url = f"{settings.OSRM_BASE_URL}/route/v1/driving/{lon1},{lat1};{lon2},{lat2}"
-    resp = await client.get(
-        url,
-        params={
-            "steps": "true",
-            "overview": "false",
-            "geometries": "polyline6",
-            "alternatives": "false",
-            "annotations": "false",
-        },
+async def _osrm_leg(client: httpx.AsyncClient, origin, dest, base_url: str) -> tuple[list[dict], list[list[float]]]:
+    """Call OSRM /route and return (raw steps, polyline coordinates)."""
+    coord_str = f"{origin[1]},{origin[0]};{dest[1]},{dest[0]}"
+    url = (
+        f"{base_url}/route/v1/driving/{coord_str}"
+        "?overview=full&geometries=geojson&steps=true&annotations=duration,distance"
     )
+    resp = await client.get(url, timeout=30.0)
     resp.raise_for_status()
     data = resp.json()
-    routes = data.get("routes") or []
-    if data.get("code") != "Ok" or not routes:
-        return None
-    route = routes[0]
-    steps: list[dict[str, Any]] = []
-    for leg in route.get("legs") or []:
-        for step in leg.get("steps") or []:
-            steps.append(_normalize_osrm_step(step))
-    return {
-        "distance_m": round(float(route.get("distance") or 0.0), 1),
-        "duration_s": round(float(route.get("duration") or 0.0), 1),
-        "steps": steps,
-    }
+    if data.get("code") != "Ok" or not data.get("routes"):
+        raise ValueError(f"OSRM route error: code={data.get('code')}")
+    route = data["routes"][0]
+
+    steps = []
+    for leg in route.get("legs", []):
+        for step in leg.get("steps", []):
+            man = step.get("maneuver") or {}
+            location = man.get("location") or ([origin[1], origin[0]] if steps else [dest[1], dest[0]])
+            steps.append(
+                {
+                    "instruction": _osrm_instruction(step),
+                    "distance_m": float(step.get("distance", 0.0)),
+                    "duration_s": float(step.get("duration", 0.0)),
+                    "lon": float(location[0]),
+                    "lat": float(location[1]),
+                    "maneuver": man.get("type") or None,
+                }
+            )
+    geometry = (route.get("geometry") or {}).get("coordinates") or []
+    return steps, geometry
 
 
-async def _fetch_ors_leg(
-    client: httpx.AsyncClient,
-    lon1: float,
-    lat1: float,
-    lon2: float,
-    lat2: float,
-) -> dict[str, Any] | None:
-    settings = get_settings()
-    if not settings.ORS_API_KEY:
-        return None
+# ─────────────────────────────────────────────────────────────────────────────
+# ORS
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+async def _ors_leg(client: httpx.AsyncClient, origin, dest, api_key: str) -> tuple[list[dict], list[list[float]]]:
+    """Call ORS /v2/directions and return (raw steps, polyline coordinates)."""
     url = "https://api.openrouteservice.org/v2/directions/driving-car"
-    payload = {"coordinates": [[lon1, lat1], [lon2, lat2]]}
-    headers = {
-        "Authorization": settings.ORS_API_KEY,
-        "Content-Type": "application/json",
+    headers = {"Authorization": api_key}
+    params = {
+        "start": f"{origin[1]},{origin[0]}",
+        "end": f"{dest[1]},{dest[0]}",
+        "steps": "true",
+        "geometry_format": "geojson",
     }
-    resp = await client.post(url, json=payload, headers=headers)
+    resp = await client.get(url, params=params, headers=headers, timeout=30.0)
     resp.raise_for_status()
     data = resp.json()
-    features = data.get("features") or []
-    if not features:
-        return None
-    props = features[0].get("properties") or {}
-    segments = props.get("segments") or [{}]
-    segment = segments[0]
-    steps: list[dict[str, Any]] = []
-    for step in segment.get("steps") or []:
-        steps.append(
-            {
-                "instruction": step.get("instruction") or "Continue",
-                "name": step.get("name") or None,
-                "distance_m": round(float(step.get("distance") or 0.0), 1),
-                "duration_s": round(float(step.get("duration") or 0.0), 1),
-                "maneuver": step.get("type"),
-                "modifier": None,
-                "location": None,
-            }
-        )
-    return {
-        "distance_m": round(float(segment.get("distance") or 0.0), 1),
-        "duration_s": round(float(segment.get("duration") or 0.0), 1),
-        "steps": steps,
+    routes = data.get("routes")
+    if not routes:
+        raise ValueError("ORS route error: no routes returned")
+    route = routes[0]
+
+    steps = []
+    for segment in route.get("segments", []):
+        for step in segment.get("steps", []):
+            location = step.get("start_location")
+            if not location or len(location) != 2:
+                location = [origin[1], origin[0]] if not steps else [dest[1], dest[0]]
+            steps.append(
+                {
+                    "instruction": step.get("instruction") or "",
+                    "distance_m": float(step.get("distance", 0.0)),
+                    "duration_s": float(step.get("duration", 0.0)),
+                    "lon": float(location[0]),
+                    "lat": float(location[1]),
+                    "maneuver": step.get("type"),
+                }
+            )
+    geometry = (route.get("geometry") or {}).get("coordinates") or []
+    return steps, geometry
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# HAVERSINE FALLBACK
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _haversine_leg(origin, dest, speed_kmh: float = 30.0) -> tuple[list[dict], list[list[float]]]:
+    """Single 'proceed to waypoint' step using great-circle distance."""
+    dist_km = haversine_km(origin[0], origin[1], dest[0], dest[1]) * 1.35
+    dur_s = (dist_km / speed_kmh) * 3600.0
+    step = {
+        "instruction": "Proceed to waypoint",
+        "distance_m": round(dist_km * 1000.0, 1),
+        "duration_s": round(dur_s, 1),
+        "lon": dest[1],
+        "lat": dest[0],
+        "maneuver": "depart",
     }
+    geometry = [[origin[1], origin[0]], [dest[1], dest[0]]]
+    return [step], geometry
 
 
-async def fetch_route(
-    backend: str,
-    from_coord: tuple[float, float],
-    to_coord: tuple[float, float],
-) -> dict[str, Any] | None:
-    """Fetch and cache turn-by-turn data for a single leg. Returns None on failure."""
-    cached = cache.get_directions(backend, from_coord, to_coord)
+# ─────────────────────────────────────────────────────────────────────────────
+# PUBLIC ENTRY POINTS
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+async def get_directions_for_leg(
+    origin: tuple[float, float],
+    dest: tuple[float, float],
+    backend: str | None = None,
+    speed_kmh: float = 30.0,
+) -> dict:
+    """
+    Return directions for a single origin→dest leg.
+
+    Result: {"steps": [DirectionStep, ...], "geometry": [[lon, lat], ...], "source": str}
+    """
+    effective = backend or settings.ROUTING_BACKEND
+
+    cached = cache.get_directions(effective, origin, dest)
     if cached is not None:
-        return cached
+        # Build a fresh dict so the cached entry (returned by reference from the
+        # LRU) is never mutated in place.
+        return {
+            "steps": [DirectionStep(**s) for s in cached["steps"]],
+            "geometry": cached.get("geometry", []),
+            "source": cached.get("source", "haversine"),
+        }
 
-    lon1, lat1 = from_coord[1], from_coord[0]
-    lon2, lat2 = to_coord[1], to_coord[0]
-    result = None
     try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-            if backend == "osrm":
-                result = await _fetch_osrm_leg(client, lon1, lat1, lon2, lat2)
-            elif backend == "ors":
-                result = await _fetch_ors_leg(client, lon1, lat1, lon2, lat2)
+        if effective == "ors" and settings.ORS_API_KEY:
+            async with httpx.AsyncClient() as client:
+                raw_steps, geometry = await _ors_leg(client, origin, dest, settings.ORS_API_KEY)
+            source = "ors"
+        elif effective == "osrm":
+            async with httpx.AsyncClient() as client:
+                raw_steps, geometry = await _osrm_leg(client, origin, dest, settings.OSRM_BASE_URL)
+            source = "osrm"
+        else:
+            raw_steps, geometry = _haversine_leg(origin, dest, speed_kmh)
+            source = "haversine"
     except Exception as exc:
-        logger.warning("directions_leg_failed", backend=backend, error=str(exc))
-    if result is not None:
-        cache.set_directions(backend, from_coord, to_coord, result)
+        logger.warning("directions_fallback_haversine", error=str(exc), backend=effective)
+        raw_steps, geometry = _haversine_leg(origin, dest, speed_kmh)
+        source = "haversine"
+
+    steps = [DirectionStep(**s) for s in raw_steps]
+    result = {"steps": steps, "geometry": geometry, "source": source}
+    cache.set_directions(effective, origin, dest, result)
     return result
 
 
-async def build_direction_leg(
-    backend: str,
-    from_wp: dict[str, Any],
-    to_wp: dict[str, Any],
-    from_label: str | None,
-    to_label: str | None,
-) -> dict[str, Any]:
-    """Assemble a single leg entry, fetching (or falling back for) the step data."""
-    from_coord = (from_wp["lat"], from_wp["lon"])
-    to_coord = (to_wp["lat"], to_wp["lon"])
+async def get_directions_for_route(
+    coordinates: list[tuple[float, float]],
+    backend: str | None = None,
+    speed_kmh: float = 30.0,
+) -> dict:
+    """
+    Return concatenated directions across a full ordered route.
 
-    leg_data: dict[str, Any] | None = None
-    if backend in ("osrm", "ors"):
-        leg_data = await fetch_route(backend, from_coord, to_coord)
+    `coordinates` is the ordered [(lat, lon), ...] list of stops. Legs run in
+    parallel; the flattened step list and polyline preserve route order.
+    """
+    if len(coordinates) < 2:
+        return {"steps": [], "geometry": [], "source": "haversine"}
 
-    steps = leg_data.get("steps", []) if leg_data else []
-    return {
-        "from_stop": {
-            "id": from_wp.get("id"),
-            "label": from_label,
-            "lat": from_wp["lat"],
-            "lon": from_wp["lon"],
-        },
-        "to_stop": {
-            "id": to_wp.get("id"),
-            "label": to_label,
-            "lat": to_wp["lat"],
-            "lon": to_wp["lon"],
-        },
-        "distance_km": round(leg_data["distance_m"] / 1000.0, 3) if leg_data else None,
-        "duration_s": leg_data["duration_s"] if leg_data else None,
-        "steps": steps,
-    }
-
-
-async def build_vehicle_directions(
-    backend: str,
-    vehicle: dict[str, Any],
-    labels: list[str | None],
-) -> dict[str, Any]:
-    """Compute the per-leg step list for one vehicle route."""
-    waypoints = vehicle.get("waypoints") or []
-    legs: list[dict[str, Any]] = []
-    for i in range(len(waypoints) - 1):
-        legs.append(
-            await build_direction_leg(
-                backend,
-                waypoints[i],
-                waypoints[i + 1],
-                labels[i] if labels else None,
-                labels[i + 1] if labels else None,
+    legs = await asyncio.gather(
+        *[
+            get_directions_for_leg(
+                coordinates[i],
+                coordinates[i + 1],
+                backend=backend,
+                speed_kmh=speed_kmh,
             )
-        )
-    return {"vehicle_id": vehicle.get("vehicle_id"), "legs": legs}
+            for i in range(len(coordinates) - 1)
+        ]
+    )
+
+    steps: list[DirectionStep] = []
+    geometry: list[list[float]] = []
+    source = "haversine"
+    for leg in legs:
+        source = leg["source"]
+        for step in leg["steps"]:
+            if steps and step.lat == steps[-1].lat and step.lon == steps[-1].lon:
+                steps.pop()
+            steps.append(step)
+        for coord in leg["geometry"]:
+            if geometry and geometry[-1] == coord:
+                continue
+            geometry.append(coord)
+
+    return {"steps": steps, "geometry": geometry, "source": source}

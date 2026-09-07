@@ -18,6 +18,8 @@ export default function MapView({
   deliveries,
   selectedVehicle,
   onSelectVehicle,
+  directions,
+  focusPoint,
 }) {
   const [showDensity, setShowDensity] = useState(false)
   const mapRef = useRef(null)
@@ -67,6 +69,13 @@ export default function MapView({
       }
     }
   }, []) // eslint-disable-line
+
+  // Fly to the focused direction step
+  useEffect(() => {
+    const map = mapInstanceRef.current
+    if (!map || !focusPoint) return
+    map.flyTo([focusPoint.lat, focusPoint.lon], 16, { duration: 0.8 })
+  }, [focusPoint])
 
   // Re-render layers when result or selection changes
   useEffect(() => {
@@ -137,6 +146,21 @@ export default function MapView({
         layersRef.current.push(circle)
       })
     })
+
+    // Driving polyline from directions geometry (selected vehicle only)
+    const selIdx = result.vehicles.findIndex((v) => v.vehicle_id === selectedVehicle)
+    if (selectedVehicle && selIdx >= 0 && directions?.routeIndex === selIdx) {
+      const coords = (directions.geometry || []).map(([lon, lat]) => [lat, lon])
+      if (coords.length > 1) {
+        const drive = L.polyline(coords, {
+          color: '#7fff6b',
+          weight: 3,
+          opacity: 0.9,
+          dashArray: '1 7',
+        }).addTo(map)
+        layersRef.current.push(drive)
+      }
+    }
 
     // Depot markers (support multiple depots)
     depotList.forEach((dep, idx) => {
@@ -222,7 +246,7 @@ export default function MapView({
         void _
       }
     }
-  }, [result, selectedVehicle, depot, depots, deliveries, onSelectVehicle, showDensity])
+  }, [result, selectedVehicle, depot, depots, deliveries, onSelectVehicle, showDensity, directions])
 
   return (
     <div style={{ position: 'relative', height: '100%', background: 'var(--bg)' }}>
@@ -285,33 +309,6 @@ export default function MapView({
             </span>
           </div>
         ))}
-        {result.unassigned_count > 0 && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              marginTop: 6,
-              paddingTop: 6,
-              borderTop: '1px solid var(--border)',
-              color: 'var(--red)',
-            }}
-          >
-            <span
-              style={{
-                fontSize: 12,
-                fontFamily: 'var(--mono)',
-                lineHeight: 1,
-                flexShrink: 0,
-              }}
-            >
-              ✕
-            </span>
-            <span style={{ fontFamily: 'var(--mono)', fontSize: 10 }}>
-              {result.unassigned_count} unassigned
-            </span>
-          </div>
-        )}
       </div>
 
       {/* Density toggle */}

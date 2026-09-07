@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncGenerator
+from pathlib import Path
 
 import structlog
 from sqlalchemy import text
@@ -48,6 +49,25 @@ async def wait_for_db(database_url: str | None, retries: int = 10, delay: float 
 
 def is_db_enabled() -> bool:
     return _session_factory is not None
+
+
+def run_migrations(database_url: str) -> None:
+    """Run alembic upgrade head synchronously (called once at startup)."""
+    from alembic.config import Config
+
+    from alembic import command
+
+    alembic_ini = Path(__file__).resolve().parent.parent / "alembic.ini"
+    if not alembic_ini.exists():
+        logger.warning("alembic_ini_missing", path=str(alembic_ini))
+        return
+    cfg = Config(str(alembic_ini))
+    cfg.set_main_option("sqlalchemy.url", database_url)
+    try:
+        command.upgrade(cfg, "head")
+        logger.info("migrations_applied")
+    except Exception:
+        logger.exception("migrations_failed")
 
 
 async def get_db() -> AsyncGenerator[AsyncSession | None, None]:

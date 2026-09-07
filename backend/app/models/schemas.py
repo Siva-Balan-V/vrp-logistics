@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 from typing import Any, Literal
 
@@ -99,6 +100,47 @@ class OptimizeRequest(BaseModel):
     }
 
 
+class ReplanDriver(BaseModel):
+    driver_id: uuid.UUID = Field(..., description="Driver whose position seeds this vehicle route")
+    lat: float = Field(..., ge=-90, le=90, description="Live driver latitude")
+    lon: float = Field(..., ge=-180, le=180, description="Live driver longitude")
+
+    @field_validator("lat")
+    @classmethod
+    def lat_precision(cls, v: float) -> float:
+        return round(v, 6)
+
+    @field_validator("lon")
+    @classmethod
+    def lon_precision(cls, v: float) -> float:
+        return round(v, 6)
+
+
+class ReplanRequest(BaseModel):
+    previous_job_id: str = Field(..., description="Job ID of the optimization to re-plan from")
+    drivers: list[ReplanDriver] = Field(
+        default_factory=list,
+        max_length=100,
+        description="Live driver positions — each becomes a route start (seeded as a depot)",
+    )
+    vehicles: VehicleSpec | None = Field(default=None, description="Optional vehicle spec override")
+    routing_backend: Literal["haversine", "osrm", "ors"] | None = Field(
+        default=None, description="Override routing backend: osrm | ors | haversine"
+    )
+    traffic: bool = Field(default=False, description="Use real-time traffic data (ORS only; requires ORS_API_KEY)")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "previous_job_id": "f2ec6a8e-59be-4caf-bda1-5e1e6b2f1d9a",
+                "drivers": [
+                    {"driver_id": "00000000-0000-0000-0000-000000000003", "lat": 51.515, "lon": -0.072},
+                ],
+            }
+        }
+    }
+
+
 # ─────────────────────────────────────────────
 # OUTPUT SCHEMAS
 # ─────────────────────────────────────────────
@@ -111,7 +153,10 @@ class VehicleRoute(BaseModel):
     distance_km: float
     time_minutes: float
     packages_delivered: int
-    waypoints: list[dict] = Field(default_factory=list, description="[{lat, lon, id}] for mapping")
+    waypoints: list[dict] = Field(
+        default_factory=list,
+        description="[{lat, lon, id, status}] for mapping — status is pending|en_route|arrived|delivered",
+    )
     arrival_times: list[int] = Field(default_factory=list, description="Scheduled arrival time (seconds) at each stop")
 
 
@@ -132,48 +177,28 @@ class OptimizeResponse(BaseModel):
     fuel_cost: float = Field(default=0.0, description="Estimated fuel cost ($)")
     driver_cost: float = Field(default=0.0, description="Estimated driver cost ($)")
     total_cost: float = Field(default=0.0, description="Total estimated cost ($)")
+    previous_job_id: str | None = Field(
+        default=None, description="Job ID this result re-planned from (set for ride-along replans)"
+    )
 
 
-# ─────────────────────────────────────────────
-# DIRECTIONS (TURN-BY-TURN) SCHEMAS
-# ─────────────────────────────────────────────
-
-
-class DirectionsStep(BaseModel):
-    instruction: str
-    name: str | None = Field(default=None, description="Street/road name")
-    distance_m: float | None = Field(default=None)
-    duration_s: float | None = Field(default=None)
-    maneuver: str | None = Field(default=None, description="OSRM/ORS step type")
-    modifier: str | None = Field(default=None, description="OSRM maneuver modifier (left/right/…)")
-    location: list[float] | None = Field(default=None, description="[lat, lon] of the maneuver")
-
-
-class DirectionsStop(BaseModel):
-    id: int | None = None
-    label: str | None = None
-    lat: float
-    lon: float
-
-
-class DirectionsLeg(BaseModel):
-    from_stop: DirectionsStop
-    to_stop: DirectionsStop
-    distance_km: float | None = None
-    duration_s: float | None = None
-    steps: list[DirectionsStep] = Field(default_factory=list)
-
-
-class VehicleDirections(BaseModel):
-    vehicle_id: int
-    legs: list[DirectionsLeg] = Field(default_factory=list)
+class DirectionStep(BaseModel):
+    instruction: str = Field(..., description="Human-readable maneuver text")
+    distance_m: float = Field(default=0.0, description="Distance covered by this step (meters)")
+    duration_s: float = Field(default=0.0, description="Duration of this step (seconds)")
+    lon: float = Field(..., ge=-180, le=180, description="Longitude at the maneuver point")
+    lat: float = Field(..., ge=-90, le=90, description="Latitude at the maneuver point")
+    maneuver: str | int | None = Field(default=None, description="Raw maneuver code/type from the router")
 
 
 class DirectionsResponse(BaseModel):
     job_id: str
-    backend: str = Field(description="Routing backend the job used (osrm | ors | haversine)")
-    note: str | None = Field(default=None, description="Optional explanation (e.g. no road data)")
-    vehicles: list[VehicleDirections] = Field(default_factory=list)
+    route_index: int
+    source: str = Field(description="Directions source used (osrm | ors | haversine)")
+    steps: list[DirectionStep] = Field(default_factory=list)
+    geometry: list[list[float]] = Field(
+        default_factory=list, description="[[lon, lat], ...] flattened polyline across all legs"
+    )
 
 
 class ErrorResponse(BaseModel):
@@ -274,6 +299,13 @@ class DriverCreate(BaseModel):
 class DriverLocationUpdate(BaseModel):
     lat: float = Field(..., ge=-90, le=90)
     lon: float = Field(..., ge=-180, le=180)
+
+
+StopStatus = Literal["pending", "en_route", "arrived", "delivered"]
+
+
+class StopStatusUpdate(BaseModel):
+    status: StopStatus = Field(..., description="New stop status (pending → en_route → arrived → delivered)")
 
 
 class DriverAssignment(BaseModel):

@@ -5,6 +5,7 @@ import { useTheme } from '../context/ThemeContext.jsx'
 const NAV_LINKS = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/history', label: 'History' },
+  { href: '/dispatch', label: 'Dispatch' },
   { href: '/drivers', label: 'Drivers' },
   { href: '/notifications', label: 'Notifications' },
   { href: '/billing', label: 'Billing' },
@@ -38,7 +39,7 @@ export default function Header({ onReset, phase }) {
 
         {phase === 'results' && (
           <span style={s.statusBadge}>
-            <span style={s.statusDot} />
+            <span style={s.statusDot} aria-hidden="true" />
             SOLUTION READY
           </span>
         )}
@@ -50,13 +51,22 @@ export default function Header({ onReset, phase }) {
 
         <nav className="page-nav" style={s.nav}>
           {NAV_LINKS.map((l) => (
-            <a key={l.href} href={l.href} style={s.navLink}>{l.label}</a>
+            <a key={l.href} href={l.href} style={s.navLink}>
+              {l.label}
+            </a>
           ))}
           {user?.role === 'admin' && (
-            <a href="/api-keys" style={s.navLink}>API Keys</a>
+            <a href="/api-keys" style={s.navLink}>
+              API Keys
+            </a>
           )}
           {user?.role === 'admin' && (
-            <a href="/admin" style={{ ...s.navLink, color: 'var(--accent)', borderColor: 'var(--accent)' }}>Admin</a>
+            <a
+              href="/admin"
+              style={{ ...s.navLink, color: 'var(--accent)', borderColor: 'var(--accent)' }}
+            >
+              Admin
+            </a>
           )}
         </nav>
 
@@ -67,39 +77,78 @@ export default function Header({ onReset, phase }) {
           aria-label="Toggle navigation menu"
           aria-expanded={menuOpen}
         >
-          <span style={{ ...s.burgerLine, transform: menuOpen ? 'rotate(45deg) translate(4px, 4px)' : 'none' }} />
+          <span
+            style={{
+              ...s.burgerLine,
+              transform: menuOpen ? 'rotate(45deg) translate(4px, 4px)' : 'none',
+            }}
+          />
           <span style={{ ...s.burgerLine, opacity: menuOpen ? 0 : 1 }} />
-          <span style={{ ...s.burgerLine, transform: menuOpen ? 'rotate(-45deg) translate(4px, -4px)' : 'none' }} />
+          <span
+            style={{
+              ...s.burgerLine,
+              transform: menuOpen ? 'rotate(-45deg) translate(4px, -4px)' : 'none',
+            }}
+          />
         </button>
       </div>
 
       {menuOpen && (
-        <div className="page-mobile-menu" style={s.mobileMenu} role="menu">
+        <div className="page-mobile-menu" style={s.mobileMenu}>
           {NAV_LINKS.map((l) => (
-            <a key={l.href} href={l.href} style={s.mobileLink} role="menuitem" onClick={() => setMenuOpen(false)}>
+            <a key={l.href} href={l.href} style={s.mobileLink} onClick={() => setMenuOpen(false)}>
               {l.label}
             </a>
           ))}
           {user?.role === 'admin' && (
-            <a href="/api-keys" style={s.mobileLink} role="menuitem" onClick={() => setMenuOpen(false)}>
+            <a href="/api-keys" style={s.mobileLink} onClick={() => setMenuOpen(false)}>
               API Keys
             </a>
           )}
           {user?.role === 'admin' && (
-            <a href="/admin" style={s.mobileLink} role="menuitem" onClick={() => setMenuOpen(false)}>
+            <a href="/admin" style={s.mobileLink} onClick={() => setMenuOpen(false)}>
               Admin
             </a>
           )}
           {phase !== 'idle' && (
-            <button onClick={() => { onReset(); setMenuOpen(false) }} style={s.mobileLink}>New Job</button>
+            <button
+              onClick={() => {
+                onReset()
+                setMenuOpen(false)
+              }}
+              style={s.mobileLink}
+            >
+              New Job
+            </button>
           )}
-          <a href="/docs" target="_blank" rel="noopener noreferrer" style={s.mobileLink} onClick={() => setMenuOpen(false)}>
+          <a
+            href="/docs"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={s.mobileLink}
+            onClick={() => setMenuOpen(false)}
+          >
             API Docs
           </a>
           <div style={s.mobileUserRow}>
             {user && <span style={s.userEmail}>{user.email}</span>}
-            <button onClick={() => { logout(); setMenuOpen(false) }} style={s.mobileLogout}>Logout</button>
-            <button onClick={() => { toggleTheme(); setMenuOpen(false) }} style={s.themeBtn}>
+            <button
+              onClick={() => {
+                logout()
+                setMenuOpen(false)
+              }}
+              style={s.mobileLogout}
+            >
+              Logout
+            </button>
+            <button
+              onClick={() => {
+                toggleTheme()
+                setMenuOpen(false)
+              }}
+              aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+              style={s.themeBtn}
+            >
               {theme === 'dark' ? '☀' : '☾'}
             </button>
           </div>
@@ -109,12 +158,21 @@ export default function Header({ onReset, phase }) {
       <div className="page-header-right" style={s.right}>
         {user && <span style={s.userEmail}>{user.email}</span>}
         {user && (
-          <button onClick={logout} style={s.logoutBtn}>Logout</button>
+          <button onClick={logout} style={s.logoutBtn}>
+            Logout
+          </button>
         )}
-        <button onClick={toggleTheme} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} style={s.themeBtn}>
+        <button
+          onClick={toggleTheme}
+          title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          style={s.themeBtn}
+        >
           {theme === 'dark' ? '☀' : '☾'}
         </button>
-        <a href="/docs" target="_blank" rel="noopener noreferrer" style={s.navLink}>API Docs</a>
+        <a href="/docs" target="_blank" rel="noopener noreferrer" style={s.navLink}>
+          API Docs
+        </a>
       </div>
     </header>
   )

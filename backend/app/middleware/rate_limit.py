@@ -51,7 +51,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         now = time.monotonic()
         cutoff = now - self.window
 
-        limit = self.optimize_limit if path == "/api/v1/optimize-routes" else self.default_limit
+        limit = (
+            self.optimize_limit
+            if path in {"/api/v1/optimize-routes", "/api/v1/optimize-routes/replan"}
+            else self.default_limit
+        )
 
         key = f"{client_ip}:{path}"
         hits = self._hits[key]

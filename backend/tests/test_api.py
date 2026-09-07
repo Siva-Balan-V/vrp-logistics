@@ -1,6 +1,6 @@
 """Unit tests for every API endpoint."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -268,6 +268,32 @@ class TestOptimizeRoutes:
         resp = client.post("/api/v1/optimize-routes", json=req)
         assert resp.status_code == 422
 
+    def test_traffic_requires_ors_api_key(self, client, sample_request, monkeypatch):
+        from app.config import get_settings
+
+        monkeypatch.setattr(get_settings(), "ORS_API_KEY", "")
+        req = {**sample_request, "routing_backend": "ors", "traffic": True}
+        resp = client.post("/api/v1/optimize-routes", json=req)
+        assert resp.status_code == 422
+        assert "ORS_API_KEY" in resp.json()["detail"]
+
+    def test_traffic_requires_ors_backend(self, client, sample_request, monkeypatch):
+        from app.config import get_settings
+
+        monkeypatch.setattr(get_settings(), "ORS_API_KEY", "test-key")
+        req = {**sample_request, "routing_backend": "haversine", "traffic": True}
+        resp = client.post("/api/v1/optimize-routes", json=req)
+        assert resp.status_code == 422
+        assert "'ors'" in resp.json()["detail"]
+
+    def test_traffic_with_ors_backend_and_key_succeeds(self, client, sample_request, monkeypatch):
+        from app.config import get_settings
+
+        monkeypatch.setattr(get_settings(), "ORS_API_KEY", "test-key")
+        req = {**sample_request, "routing_backend": "ors", "traffic": True}
+        resp = client.post("/api/v1/optimize-routes", json=req)
+        assert resp.status_code == 200
+
     def test_response_has_vehicles_list(self, client, sample_request):
         resp = client.post("/api/v1/optimize-routes", json=sample_request)
         vehicles = resp.json()["vehicles"]
@@ -509,3 +535,297 @@ class TestErrorHandling:
             )
         assert "boom" not in resp.text
         assert "Internal server error" not in resp.text
+
+
+# ─────────────────────────────────────────────
+
+
+class TestDirectionsEndpoint:
+    def _seed_job(self):
+        from app.services import cache
+
+        resp = OptimizeResponse(
+            job_id="dir-test",
+            status="success",
+            solver_time_seconds=0.123,
+            total_locations=3,
+            assigned_count=3,
+            unassigned_count=0,
+            vehicles_used=1,
+            total_distance_km=45.0,
+            total_time_minutes=90.0,
+            vehicles=[
+                VehicleRoute(
+                    vehicle_id=1,
+                    route=[0, 1, 2, 0],
+                    route_labels=["Depot", "Stop 1", "Stop 2", "Depot"],
+                    distance_km=45.0,
+                    time_minutes=90.0,
+                    packages_delivered=2,
+                    waypoints=[
+                        {"id": 0, "lat": 51.5074, "lon": -0.1278, "priority": 1},
+                        {"id": 1, "lat": 51.5089, "lon": -0.1301, "priority": 1},
+                        {"id": 2, "lat": 51.5100, "lon": -0.1320, "priority": 1},
+                    ],
+                ),
+            ],
+            unassigned=[],
+            unassigned_labels=[],
+            matrix_source="haversine",
+        )
+        cache.set_job("00000000-0000-0000-0000-000000000001", resp.job_id, resp.model_dump())
+
+    def test_directions_returns_steps_for_route(self, client):
+        self._seed_job()
+        resp = client.get("/api/v1/routes/dir-test/directions/route/0")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["job_id"] == "dir-test"
+        assert data["route_index"] == 0
+        assert data["source"] == "haversine"
+        assert len(data["steps"]) == 3
+        assert data["steps"][0]["instruction"] == "Proceed to waypoint"
+        assert data["geometry"], "expected a polyline"
+
+    def test_directions_404_for_missing_job(self, client):
+        resp = client.get("/api/v1/routes/nope/directions/route/0")
+        assert resp.status_code == 404
+
+    def test_directions_404_for_bad_route_index(self, client):
+        self._seed_job()
+        resp = client.get("/api/v1/routes/dir-test/directions/route/9")
+        assert resp.status_code == 404
+
+
+class TestExportEndpoint:
+    def _seed_job(self):
+        from app.services import cache
+
+        resp = _make_fake_response(job_id="export-test")
+        resp.vehicles[0].waypoints = [
+            {"id": 0, "lat": 51.5074, "lon": -0.1278},
+            {"id": 1, "lat": 51.5089, "lon": -0.1301},
+            {"id": 2, "lat": 51.5100, "lon": -0.1320},
+            {"id": 0, "lat": 51.5074, "lon": -0.1278},
+        ]
+        cache.set_job("00000000-0000-0000-0000-000000000001", resp.job_id, resp.model_dump())
+
+    def test_export_csv_includes_direction_columns(self, client):
+        self._seed_job()
+        resp = client.get("/api/v1/routes/export-test/export?format=csv")
+        assert resp.status_code == 200
+        assert "arrive_maneuver" in resp.text
+        assert "arrive_instruction" in resp.text
+        assert "Proceed to waypoint" in resp.text  # haversine fallback steps
+
+    def test_export_kml(self, client):
+        self._seed_job()
+        resp = client.get("/api/v1/routes/export-test/export?format=kml")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("application/vnd.google-earth.kml+xml")
+        assert "<kml" in resp.text
+        assert "Leg 1" in resp.text
+
+    def test_export_gpx_still_works(self, client):
+        self._seed_job()
+        resp = client.get("/api/v1/routes/export-test/export?format=gpx")
+        assert resp.status_code == 200
+        assert "<gpx" in resp.text
+
+    def test_export_unknown_format_422(self, client):
+        self._seed_job()
+        resp = client.get("/api/v1/routes/export-test/export?format=docx")
+        assert resp.status_code == 422
+
+    def test_export_missing_job_404(self, client):
+        resp = client.get("/api/v1/routes/nope/export?format=kml")
+        assert resp.status_code == 404
+
+
+# ─────────────────────────────────────────────
+# POST /api/v1/drivers/{driver_id}/stops/{stop_id}/status
+# ─────────────────────────────────────────────
+
+_DRIVER_ID = "00000000-0000-0000-0000-000000000003"
+_STOP_JOB_ID = "stop-status-test"
+
+
+def _stop_status_route_json() -> dict:
+    return {
+        "vehicle_id": 1,
+        "route": [0, 1, 2, 0],
+        "route_labels": ["Depot", "Stop 1", "Stop 2", "Depot"],
+        "distance_km": 45.0,
+        "time_minutes": 90.0,
+        "packages_delivered": 2,
+        "waypoints": [
+            {"id": 0, "lat": 51.5074, "lon": -0.1278, "priority": 1, "status": "pending"},
+            {"id": 1, "lat": 51.5089, "lon": -0.1301, "priority": 1, "status": "pending"},
+            {"id": 2, "lat": 51.5100, "lon": -0.1320, "priority": 1, "status": "pending"},
+            {"id": 0, "lat": 51.5074, "lon": -0.1278, "priority": 1, "status": "pending"},
+        ],
+        "arrival_times": [0, 1800, 3600],
+    }
+
+
+def _seed_stop_job() -> None:
+    from app.services import cache
+
+    routes = _stop_status_route_json()
+    resp = {
+        "job_id": _STOP_JOB_ID,
+        "status": "success",
+        "solver_time_seconds": 0.1,
+        "total_locations": 2,
+        "assigned_count": 2,
+        "unassigned_count": 0,
+        "vehicles_used": 1,
+        "total_distance_km": 45.0,
+        "total_time_minutes": 90.0,
+        "vehicles": [routes],
+        "unassigned": [],
+        "unassigned_labels": [],
+        "matrix_source": "haversine",
+    }
+    cache.set_job(_DEFAULT_COMPANY_ID, _STOP_JOB_ID, resp)
+
+
+class TestStopStatusEndpoint:
+    @pytest.fixture
+    def env(self):
+        from app.database import get_db
+        from app.dependencies import require_user
+        from app.models.db import Driver, VehicleRoute
+
+        app = create_app()
+        mock_user = MagicMock()
+        mock_user.company_id = _DEFAULT_COMPANY_ID
+
+        driver = Driver(
+            id=_DRIVER_ID,
+            company_id=_DEFAULT_COMPANY_ID,
+            name="Joan",
+            phone="+15550123",
+            status="on_route",
+        )
+        vr = VehicleRoute(
+            job_id=_STOP_JOB_ID,
+            vehicle_id=1,
+            route_json=_stop_status_route_json(),
+            distance_km=45.0,
+            time_minutes=90.0,
+            packages=2,
+        )
+
+        async def _execute(stmt):
+            s = str(stmt)
+            out = MagicMock()
+            if "FROM drivers" in s:
+                out.scalar_one_or_none.return_value = driver
+            elif "FROM vehicle_routes" in s:
+                # `_get_assigned_route` sorts; the persist path doesn't — both may
+                # return the same route row here.
+                out.scalar_one_or_none.return_value = vr
+            else:  # optimization_jobs etc.
+                out.scalar_one_or_none.return_value = None
+            return out
+
+        state = {"db": AsyncMock(), "sent_triggers": [], "driver": driver}
+        state["db"].execute.side_effect = _execute
+
+        async def _fake_db():
+            yield state["db"]
+
+        app.dependency_overrides[require_user] = lambda: mock_user
+        app.dependency_overrides[get_db] = _fake_db
+
+        async def fake_send(db, company_id, driver_id, trigger, *args, **kwargs):
+            state["sent_triggers"].append(trigger)
+            return [{"channel": "sms", "recipient": None, "status": "sent"}]
+
+        state["send"] = AsyncMock(side_effect=fake_send)
+        with patch("app.services.stop_lifecycle.send_notification", state["send"]), TestClient(app) as c:
+            yield c, state
+        app.dependency_overrides.clear()
+        from app.services import cache
+
+        cache._job_cache.clear()
+
+    def _post(self, c, stop_id=1, status="en_route"):
+        return c.post(f"/api/v1/drivers/{_DRIVER_ID}/stops/{stop_id}/status", json={"status": status})
+
+    def test_en_route_transitions_stop_and_persists(self, env):
+        c, state = env
+        _seed_stop_job()
+        resp = self._post(c, stop_id=1, status="en_route")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["stop_id"] == 1
+        assert data["previous_status"] == "pending"
+        assert data["status"] == "en_route"
+
+        from app.services import cache
+
+        cached = cache.get_job(_DEFAULT_COMPANY_ID, _STOP_JOB_ID)
+        wp = [w for w in cached["vehicles"][0]["waypoints"] if w["id"] == 1][0]
+        assert wp["status"] == "en_route"
+
+    def test_arrived_emits_arrived_trigger(self, env):
+        c, state = env
+        _seed_stop_job()
+        assert self._post(c, stop_id=1, status="en_route").status_code == 200
+        resp = self._post(c, stop_id=1, status="arrived")
+        assert resp.status_code == 200
+        assert resp.json()["previous_status"] == "en_route"
+        assert state["sent_triggers"] == ["arrived"]
+
+    def test_out_of_order_transition_returns_409(self, env):
+        c, state = env
+        _seed_stop_job()
+        resp = self._post(c, stop_id=1, status="arrived")
+        assert resp.status_code == 409
+        assert "Invalid transition" in resp.json()["detail"]
+
+        from app.services import cache
+
+        cached = cache.get_job(_DEFAULT_COMPANY_ID, _STOP_JOB_ID)
+        wp = [w for w in cached["vehicles"][0]["waypoints"] if w["id"] == 1][0]
+        assert wp["status"] == "pending"
+
+    def test_unknown_stop_returns_404(self, env):
+        c, state = env
+        _seed_stop_job()
+        resp = self._post(c, stop_id=99, status="en_route")
+        assert resp.status_code == 404
+
+    def test_invalid_status_value_returns_422(self, env):
+        c, state = env
+        _seed_stop_job()
+        resp = c.post(f"/api/v1/drivers/{_DRIVER_ID}/stops/1/status", json={"status": "shipped"})
+        assert resp.status_code == 422
+
+    def test_unassigned_driver_returns_404(self, env):
+        c, state = env
+        _seed_stop_job()
+
+        async def _no_route(stmt):
+            out = MagicMock()
+            out.scalar_one_or_none.return_value = None
+            return out
+
+        state["db"].execute.side_effect = _no_route
+        resp = self._post(c, stop_id=1, status="en_route")
+        assert resp.status_code == 404
+
+    def test_delayed_trigger_when_running_late(self, env):
+        c, state = env
+        _seed_stop_job()
+        state["driver"].current_lat = 51.5070
+        state["driver"].current_lon = -0.1280
+        eta = {"remaining_stops": [{"id": 2, "delta_min": 32.0}]}
+        with patch("app.services.stop_lifecycle.compute_live_eta", AsyncMock(return_value=eta)):
+            assert self._post(c, stop_id=1, status="en_route").status_code == 200
+            resp = self._post(c, stop_id=1, status="arrived")
+        assert resp.status_code == 200
+        # en_route → delayed (late to a remaining stop); arrived → arrived + delayed
+        assert state["sent_triggers"] == ["delayed", "arrived", "delayed"]

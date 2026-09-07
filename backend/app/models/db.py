@@ -78,6 +78,11 @@ class OptimizationJob(Base):
 
     job_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     company_id = Column(UUID(as_uuid=True), ForeignKey("companies.id"), nullable=False, index=True)
+    previous_job_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("optimization_jobs.job_id", ondelete="SET NULL"),
+        nullable=True,
+    )
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     status = Column(String(20), nullable=False, default="pending")
     n_locations = Column(Integer, nullable=False)

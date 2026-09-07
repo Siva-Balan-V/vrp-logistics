@@ -69,9 +69,8 @@ export async function getJobResult(jobId, token) {
   return apiFetch(`/api/v1/routes/${jobId}`, { token })
 }
 
-export async function getRouteDirections(jobId, vehicleId, token) {
-  const qs = vehicleId != null ? `?vehicle_id=${encodeURIComponent(vehicleId)}` : ''
-  return apiFetch(`/api/v1/routes/${jobId}/directions${qs}`, { token })
+export async function fetchDirections(jobId, routeIndex, token) {
+  return apiFetch(`/api/v1/routes/${jobId}/directions/route/${routeIndex}`, { token })
 }
 
 export async function listJobs(token, limit = 20) {
