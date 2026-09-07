@@ -4,7 +4,7 @@ function isNum(v) {
   return typeof v === 'number' && Number.isFinite(v)
 }
 
-function validatePayload(json) {
+export function validatePayload(json) {
   const errors = []
   if (!json.deliveries || !Array.isArray(json.deliveries) || json.deliveries.length === 0) {
     errors.push('"deliveries" must be a non-empty array')
@@ -37,6 +37,9 @@ function validatePayload(json) {
       errors.push('vehicles: "count" must be a positive number')
     if (!isNum(json.vehicles.capacity) || json.vehicles.capacity <= 0)
       errors.push('vehicles: "capacity" must be a positive number')
+  }
+  if (json.traffic === true && json.routing_backend !== 'ors') {
+    errors.push('"traffic": true requires "routing_backend": "ors" (real-time traffic is ORS-only)')
   }
   return errors
 }
@@ -468,6 +471,16 @@ export default function UploadPanel({ phase, error, onSubmit }) {
             <label htmlFor="traffic" style={{ fontSize: 13, cursor: 'pointer' }}>
               Real-time traffic-aware routing
             </label>
+            <span
+              style={{
+                fontSize: 10,
+                fontFamily: 'var(--mono)',
+                color: 'var(--text-3)',
+                marginLeft: 'auto',
+              }}
+            >
+              requires ORS_API_KEY on the server
+            </span>
           </div>
         )}
 
@@ -696,7 +709,13 @@ function GenerateForm({
   setSpeed,
 }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+        gap: 16,
+      }}
+    >
       <Field label="City">
         <select value={city} onChange={(e) => setCity(e.target.value)} style={{ width: '100%' }}>
           {['london', 'berlin', 'new_york', 'paris', 'tokyo'].map((c) => (

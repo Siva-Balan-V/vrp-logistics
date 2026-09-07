@@ -14,6 +14,8 @@ import numpy as np
 import structlog
 from cachetools import LRUCache
 
+from app.middleware.metrics import REDIS_CONNECTED
+
 logger = structlog.get_logger(__name__)
 
 # In-process LRU (stores up to 20 matrices – each can be 600×600×8 bytes ≈ 2.9 MB)
@@ -29,9 +31,11 @@ def _init_redis(url: str) -> None:
 
         _redis_client = redis.from_url(url, decode_responses=False, socket_connect_timeout=2)
         _redis_client.ping()
+        REDIS_CONNECTED.set(1)
         safe_url = url.split("@")[-1] if "@" in url else url
         logger.info("redis_connected", url=safe_url)
     except Exception as exc:
+        REDIS_CONNECTED.set(0)
         logger.warning("redis_unavailable", error=str(exc))
         _redis_client = None
 
@@ -44,11 +48,14 @@ def init_cache(redis_url: str | None = None) -> None:
 def is_redis_connected() -> bool:
     """Check if Redis client is available and connected."""
     if _redis_client is None:
+        REDIS_CONNECTED.set(0)
         return False
     try:
         _redis_client.ping()
+        REDIS_CONNECTED.set(1)
         return True
     except Exception:
+        REDIS_CONNECTED.set(0)
         return False
 
 

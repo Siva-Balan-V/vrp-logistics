@@ -11,6 +11,7 @@ from sqlalchemy import func as sa_func
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.database import get_db, is_db_enabled
 from app.dependencies import ApiKeyPrincipal, get_current_principal, require_permission
 from app.models.db import Company, OptimizationJob, User
@@ -21,6 +22,7 @@ from app.services.optimizer import run_optimization_sync
 from app.services.plans import check_optimization_limit
 
 logger = structlog.get_logger(__name__)
+settings = get_settings()
 
 router = APIRouter(prefix="/api/v1", tags=["optimization"])
 
@@ -46,6 +48,19 @@ async def optimize_routes(
     db: AsyncSession = Depends(get_db),
     principal: User | ApiKeyPrincipal = Depends(require_permission(PERMISSION_OPTIMIZE)),
 ) -> OptimizeResponse:
+    if req.traffic:
+        if not settings.ORS_API_KEY:
+            raise HTTPException(
+                status_code=422,
+                detail="traffic=true requires ORS_API_KEY to be configured on the server",
+            )
+        effective_backend = req.routing_backend or settings.ROUTING_BACKEND
+        if effective_backend != "ors":
+            raise HTTPException(
+                status_code=422,
+                detail=f"traffic=true requires the 'ors' routing backend (got {effective_backend!r})",
+            )
+
     if db is not None and is_db_enabled():
         company_result = await db.execute(select(Company).where(Company.id == principal.company_id))
         company = company_result.scalar_one_or_none()

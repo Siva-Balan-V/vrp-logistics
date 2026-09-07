@@ -1,0 +1,78 @@
+# Alerting rules for the VRP stack.
+# Loaded by Prometheus via the `rule_files` entry in prometheus.yml.
+# Routes / receivers are configured externally (e.g. Alertmanager); rules are
+# kept receiver-agnostic so any Alertmanager config can use them.
+
+groups:
+  - name: vrp-backend
+    interval: 30s
+    rules:
+      - alert: VrpBackendDown
+        expr: up{job="vrp-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "VRP backend is unreachable"
+          description: "Prometheus cannot scrape {{ $labels.instance }} (job {{ $labels.job }}) for more than 1 minute."
+
+      - alert: VrpHigh5xxRate
+        expr: |
+          sum(rate(vrp_http_requests_total{status=~"^5..$"}[5m]))
+            / clamp_min(sum(rate(vrp_http_requests_total[5m])), 1)
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High HTTP 5xx error rate"
+          description: "5xx responses exceed 5% of traffic over the last 5 minutes ({{ $value | humanizePercentage }})."
+
+      - alert: VrpSolverSlowP95
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(vrp_solver_duration_seconds_bucket[5m])) by (le)
+          )
+          > 60
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Solver p95 latency elevated"
+          description: "p95 solver duration exceeds 60s over the last 10 minutes (current ~{{ $value }}s)."
+
+      - alert: VrpSolverErrors
+        expr: sum(increase(vrp_solver_results_total{status="error"}[10m])) > 20
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Solver is failing repeatedly"
+          description: "More than 20 solver errors in the last 10 minutes."
+
+  - name: vrp-availability
+    interval: 30s
+    rules:
+      - alert: VrpRedisUnavailable
+        expr: vrp_redis_connected == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis is unavailable"
+          description: "Backend reports Redis as unreachable for over 2 minutes. Caching falls back to the in-process LRU."
+
+      - alert: VrpHighRequestLatency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(vrp_http_request_duration_seconds_bucket[5m])) by (le)
+          )
+          > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "HTTP p95 latency elevated"
+          description: "p95 HTTP request latency exceeds 10s over the last 5 minutes (current ~{{ $value }}s)."

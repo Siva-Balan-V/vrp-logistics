@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import logging
-import logging.handlers
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -13,7 +11,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import get_settings
-from app.database import init_db, wait_for_db
+from app.database import init_db, run_migrations, wait_for_db
+from app.logging_config import configure_logging
 from app.middleware.metrics import MetricsMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.models.schemas import HealthResponse
@@ -29,6 +28,7 @@ from app.routes.optimization import router as opt_router
 from app.routes.webhooks import router as webhooks_router
 from app.services import cache
 from app.services.cache import init_cache
+from app.tracing import is_tracing_enabled, setup_tracing
 from app.websocket_manager import manager
 
 settings = get_settings()
@@ -36,43 +36,7 @@ settings = get_settings()
 # ─────────────────────────────────────────────
 # Structured logging setup
 # ─────────────────────────────────────────────
-log_level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
-
-shared_processors = [
-    structlog.contextvars.merge_contextvars,
-    structlog.processors.add_log_level,
-    structlog.processors.TimeStamper(fmt="iso"),
-    structlog.stdlib.add_log_level,
-]
-
-renderer = structlog.processors.JSONRenderer() if settings.LOG_FORMAT == "json" else structlog.dev.ConsoleRenderer()
-
-if settings.LOG_FILE:
-    handler = logging.handlers.RotatingFileHandler(
-        settings.LOG_FILE,
-        maxBytes=10_485_760,
-        backupCount=5,
-    )
-    handler.setFormatter(
-        structlog.stdlib.ProcessorFormatter(
-            processors=shared_processors + [renderer],
-        ),
-    )
-    logging.basicConfig(handlers=[handler], level=log_level, force=True)
-    structlog.configure(
-        processors=shared_processors + [structlog.stdlib.ProcessorFormatter.wrap_for_formatter],
-        wrapper_class=structlog.make_filtering_bound_logger(log_level),
-        context_class=dict,
-        logger_factory=structlog.stdlib.LoggerFactory(),
-        cache_logger_on_first_use=True,
-    )
-else:
-    structlog.configure(
-        processors=shared_processors + [renderer],
-        wrapper_class=structlog.make_filtering_bound_logger(log_level),
-        context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
-    )
+configure_logging(settings)
 
 logger = structlog.get_logger(__name__)
 
@@ -82,9 +46,12 @@ logger = structlog.get_logger(__name__)
 # ─────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_tracing(settings.OTEL_EXPORTER_OTLP_ENDPOINT, settings.OTEL_SERVICE_NAME)
     init_cache(settings.REDIS_URL)
     init_db(settings.DATABASE_URL)
-    await wait_for_db(settings.DATABASE_URL)
+    if settings.DATABASE_URL:
+        await wait_for_db(settings.DATABASE_URL)
+        run_migrations(settings.DATABASE_URL)
     if not settings.JWT_SECRET_KEY:
         logger.warning("jwt_secret_not_set", detail="JWT_SECRET_KEY is empty — set it in .env for production")
     elif settings.JWT_SECRET_KEY == "CHANGE-ME-IN-PRODUCTION":
@@ -141,6 +108,12 @@ def create_app() -> FastAPI:
             method=request.method,
             request_id=request_id,
         )
+        if is_tracing_enabled():
+            from opentelemetry import trace
+
+            span = trace.get_current_span()
+            if span.is_recording():
+                span.set_attribute("http.request_id", request_id)
         response = await call_next(request)
         elapsed = round((time.perf_counter() - start) * 1000, 1)
         response.headers["X-Process-Time-Ms"] = str(elapsed)
