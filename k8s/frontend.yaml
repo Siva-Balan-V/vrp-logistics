@@ -2,6 +2,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  namespace: vrp-production
   name: vrp-frontend
 spec:
   replicas: 2
@@ -15,7 +16,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: ghcr.io/your-org/vrp-frontend:latest
+          image: ghcr.io/siva-balan-v/vrp-frontend:latest
           ports:
             - containerPort: 80
           resources:
@@ -35,6 +36,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  namespace: vrp-production
   name: vrp-frontend
 spec:
   selector:
@@ -47,6 +49,7 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
+  namespace: vrp-production
   name: vrp-ingress
   annotations:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "120"

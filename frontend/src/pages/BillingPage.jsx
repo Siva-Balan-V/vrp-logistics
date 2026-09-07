@@ -122,7 +122,15 @@ export default function BillingPage() {
                 {usage.plan}
               </span>
             </h2>
-            <div style={{ display: 'flex', gap: 24, fontFamily: 'var(--mono)', fontSize: 12, flexWrap: 'wrap' }}>
+            <div
+              style={{
+                display: 'flex',
+                gap: 24,
+                fontFamily: 'var(--mono)',
+                fontSize: 12,
+                flexWrap: 'wrap',
+              }}
+            >
               <div>
                 <span style={{ color: 'var(--text-3)' }}>Optimizations this month: </span>
                 <span style={{ color: 'var(--text-1)' }}>
@@ -221,7 +229,7 @@ export default function BillingPage() {
                     disabled={isCurrent || paying === plan.id}
                     style={{
                       background: isCurrent ? 'var(--bg-3)' : 'var(--accent)',
-                      color: isCurrent ? 'var(--text-3)' : '#000',
+                      color: isCurrent ? 'var(--text-3)' : 'var(--on-accent)',
                       border: 'none',
                       borderRadius: 'var(--radius)',
                       padding: '10px',

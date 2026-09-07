@@ -14,6 +14,8 @@ import numpy as np
 import structlog
 from cachetools import LRUCache
 
+from app.middleware.metrics import REDIS_CONNECTED
+
 logger = structlog.get_logger(__name__)
 
 # In-process LRU (stores up to 20 matrices – each can be 600×600×8 bytes ≈ 2.9 MB)
@@ -29,9 +31,11 @@ def _init_redis(url: str) -> None:
 
         _redis_client = redis.from_url(url, decode_responses=False, socket_connect_timeout=2)
         _redis_client.ping()
+        REDIS_CONNECTED.set(1)
         safe_url = url.split("@")[-1] if "@" in url else url
         logger.info("redis_connected", url=safe_url)
     except Exception as exc:
+        REDIS_CONNECTED.set(0)
         logger.warning("redis_unavailable", error=str(exc))
         _redis_client = None
 
@@ -44,11 +48,14 @@ def init_cache(redis_url: str | None = None) -> None:
 def is_redis_connected() -> bool:
     """Check if Redis client is available and connected."""
     if _redis_client is None:
+        REDIS_CONNECTED.set(0)
         return False
     try:
         _redis_client.ping()
+        REDIS_CONNECTED.set(1)
         return True
     except Exception:
+        REDIS_CONNECTED.set(0)
         return False
 
 
@@ -114,6 +121,64 @@ def set_matrix(
 
 # Simple job-result cache (keyed by (company_id, job_id))
 _job_cache: LRUCache = LRUCache(maxsize=200)
+
+
+# Per-leg turn-by-turn directions cache (separate LRU so matrix entries
+# are not evicted; TTL is long because route geometry rarely changes)
+_directions_cache: LRUCache = LRUCache(maxsize=200)
+
+
+def _directions_key(backend: str, origin: tuple[float, float], dest: tuple[float, float]) -> str:
+    raw = json.dumps({"backend": backend, "origin": origin, "dest": dest}, sort_keys=True)
+    return "dir:" + hashlib.sha256(raw.encode()).hexdigest()
+
+
+def get_directions(
+    backend: str,
+    origin: tuple[float, float],
+    dest: tuple[float, float],
+) -> dict | None:
+    key = _directions_key(backend, origin, dest)
+
+    if _redis_client:
+        try:
+            data = _redis_client.get(key)
+            if data:
+                logger.info("cache_hit_directions_redis", key=key[:24])
+                return json.loads(data)
+        except Exception as exc:
+            logger.warning("redis_directions_get_error", error=str(exc))
+
+    val = _directions_cache.get(key)
+    if val is not None:
+        logger.info("cache_hit_directions_lru", key=key[:24])
+        return val
+
+    return None
+
+
+def set_directions(
+    backend: str,
+    origin: tuple[float, float],
+    dest: tuple[float, float],
+    value: dict,
+    ttl_seconds: int = 86400,
+) -> None:
+    key = _directions_key(backend, origin, dest)
+
+    # Normalize DirectionStep models to plain dicts so both the in-process LRU
+    # and Redis keep JSON-serializable, raw entries.
+    value = dict(value)
+    value["steps"] = [step.model_dump() if hasattr(step, "model_dump") else step for step in value.get("steps", [])]
+
+    _directions_cache[key] = value
+
+    if _redis_client:
+        try:
+            _redis_client.setex(key, ttl_seconds, json.dumps(value))
+            logger.info("cache_set_directions_redis", key=key[:24], ttl=ttl_seconds)
+        except Exception as exc:
+            logger.warning("redis_directions_set_error", error=str(exc))
 
 
 def _job_key(company_id, job_id: str) -> tuple[str, str]:

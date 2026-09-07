@@ -36,6 +36,11 @@ SOLVER_RESULT = Counter(
     ["status"],
 )
 
+REDIS_CONNECTED = Gauge(
+    "vrp_redis_connected",
+    "Redis connectivity: 1 when reachable, 0 when unavailable",
+)
+
 
 class MetricsMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):

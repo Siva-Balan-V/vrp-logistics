@@ -1,10 +1,10 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useId, cloneElement } from 'react'
 
 function isNum(v) {
   return typeof v === 'number' && Number.isFinite(v)
 }
 
-function validatePayload(json) {
+export function validatePayload(json) {
   const errors = []
   if (!json.deliveries || !Array.isArray(json.deliveries) || json.deliveries.length === 0) {
     errors.push('"deliveries" must be a non-empty array')
@@ -37,6 +37,9 @@ function validatePayload(json) {
       errors.push('vehicles: "count" must be a positive number')
     if (!isNum(json.vehicles.capacity) || json.vehicles.capacity <= 0)
       errors.push('vehicles: "capacity" must be a positive number')
+  }
+  if (json.traffic === true && json.routing_backend !== 'ors') {
+    errors.push('"traffic": true requires "routing_backend": "ors" (real-time traffic is ORS-only)')
   }
   return errors
 }
@@ -188,6 +191,27 @@ export default function UploadPanel({ phase, error, onSubmit }) {
     [handleFileUpload],
   )
 
+  const openFilePicker = useCallback(() => {
+    fileRef.current?.click()
+  }, [])
+
+  const onModeTabsKeyDown = useCallback((e) => {
+    const tabs = Array.from(e.currentTarget.querySelectorAll('[role="tab"]'))
+    const idx = tabs.indexOf(document.activeElement)
+    if (idx === -1) return
+    let next
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = (idx + 1) % tabs.length
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp')
+      next = (idx - 1 + tabs.length) % tabs.length
+    else if (e.key === 'Home') next = 0
+    else if (e.key === 'End') next = tabs.length - 1
+    else return
+    e.preventDefault()
+    const m = tabs[next].id.replace('mode-tab-', '')
+    setMode(m)
+    tabs[next].focus()
+  }, [])
+
   const disabled = phase === 'solving'
 
   return (
@@ -236,6 +260,7 @@ export default function UploadPanel({ phase, error, onSubmit }) {
         <div
           role="tablist"
           aria-label="Input mode"
+          onKeyDown={onModeTabsKeyDown}
           style={{
             display: 'flex',
             background: 'var(--bg-2)',
@@ -253,7 +278,9 @@ export default function UploadPanel({ phase, error, onSubmit }) {
             <button
               key={m}
               role="tab"
+              id={`mode-tab-${m}`}
               aria-selected={mode === m}
+              aria-controls={`mode-panel-${m}`}
               onClick={() => setMode(m)}
               style={{
                 flex: 1,
@@ -282,113 +309,148 @@ export default function UploadPanel({ phase, error, onSubmit }) {
             marginBottom: 20,
           }}
         >
-          {mode === 'generate' && (
-            <GenerateForm
-              city={city}
-              setCity={setCity}
-              nLocs={nLocs}
-              setNLocs={setNLocs}
-              nVehicles={nVehicles}
-              setNVehicles={setNVehicles}
-              capacity={capacity}
-              setCapacity={setCapacity}
-              speed={speed}
-              setSpeed={setSpeed}
-            />
-          )}
-
-          {mode === 'upload' && (
-            <div
-              onDragOver={(e) => {
-                e.preventDefault()
-                setDragOver(true)
-              }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={onDrop}
-              onClick={() => fileRef.current?.click()}
-              style={{
-                border: `2px dashed ${dragOver ? 'var(--accent)' : 'var(--border)'}`,
-                borderRadius: 'var(--radius)',
-                padding: '40px 20px',
-                textAlign: 'center',
-                cursor: 'pointer',
-                background: dragOver ? 'var(--accent-dim)' : 'var(--bg-2)',
-                transition: 'all 0.15s',
-              }}
-            >
-              <div style={{ fontSize: 32, marginBottom: 10 }}>📦</div>
-              <p style={{ color: 'var(--text-2)', fontSize: 13 }}>
-                Drop a JSON file or <span style={{ color: 'var(--accent)' }}>click to browse</span>
-              </p>
-              <p
-                style={{
-                  color: 'var(--text-3)',
-                  fontSize: 11,
-                  marginTop: 6,
-                  fontFamily: 'var(--mono)',
-                }}
-              >
-                Format: {`{ depot, deliveries[], vehicles }`}
-              </p>
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".json"
-                style={{ display: 'none' }}
-                onChange={(e) => {
-                  if (e.target.files[0]) handleFileUpload(e.target.files[0])
-                }}
+          <div
+            role="tabpanel"
+            id="mode-panel-generate"
+            aria-labelledby="mode-tab-generate"
+            hidden={mode !== 'generate'}
+          >
+            {mode === 'generate' && (
+              <GenerateForm
+                city={city}
+                setCity={setCity}
+                nLocs={nLocs}
+                setNLocs={setNLocs}
+                nVehicles={nVehicles}
+                setNVehicles={setNVehicles}
+                capacity={capacity}
+                setCapacity={setCapacity}
+                speed={speed}
+                setSpeed={setSpeed}
               />
-            </div>
-          )}
+            )}
+          </div>
 
-          {mode === 'paste' && (
-            <div>
-              <label
-                style={{
-                  fontSize: 12,
-                  color: 'var(--text-2)',
-                  fontFamily: 'var(--mono)',
-                  display: 'block',
-                  marginBottom: 8,
+          <div
+            role="tabpanel"
+            id="mode-panel-upload"
+            aria-labelledby="mode-tab-upload"
+            hidden={mode !== 'upload'}
+          >
+            {mode === 'upload' && (
+              <div
+                role="button"
+                tabIndex={0}
+                aria-label="Upload JSON file"
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  setDragOver(true)
                 }}
-              >
-                Paste OptimizeRequest JSON:
-              </label>
-              <textarea
-                rows={10}
-                value={pasteText}
-                onChange={(e) => {
-                  setPasteText(e.target.value)
-                  setPasteError('')
+                onDragLeave={() => setDragOver(false)}
+                onDrop={onDrop}
+                onClick={openFilePicker}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    openFilePicker()
+                  }
                 }}
-                placeholder={'{\n  "depot": {...},\n  "deliveries": [...],\n  "vehicles": {...}\n}'}
                 style={{
-                  width: '100%',
-                  fontFamily: 'var(--mono)',
-                  fontSize: 12,
-                  resize: 'vertical',
-                  background: 'var(--bg-2)',
-                  border: `1px solid ${pasteError ? 'var(--red)' : 'var(--border)'}`,
+                  border: `2px dashed ${dragOver ? 'var(--accent)' : 'var(--border)'}`,
                   borderRadius: 'var(--radius)',
-                  padding: 12,
-                  color: 'var(--text)',
+                  padding: '40px 20px',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  background: dragOver ? 'var(--accent-dim)' : 'var(--bg-2)',
+                  transition: 'all 0.15s',
                 }}
-              />
-              {pasteError && (
+              >
+                <div style={{ fontSize: 32, marginBottom: 10 }}>📦</div>
+                <p style={{ color: 'var(--text-2)', fontSize: 13 }}>
+                  Drop a JSON file or{' '}
+                  <span style={{ color: 'var(--accent)' }}>click to browse</span>
+                </p>
                 <p
                   style={{
-                    color: 'var(--red)',
+                    color: 'var(--text-3)',
                     fontSize: 11,
-                    marginTop: 4,
+                    marginTop: 6,
                     fontFamily: 'var(--mono)',
                   }}
                 >
-                  ✗ {pasteError}
+                  Format: {`{ depot, deliveries[], vehicles }`}
                 </p>
-              )}
-            </div>
-          )}
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept=".json"
+                  tabIndex={-1}
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    if (e.target.files[0]) handleFileUpload(e.target.files[0])
+                  }}
+                />
+              </div>
+            )}
+          </div>
+
+          <div
+            role="tabpanel"
+            id="mode-panel-paste"
+            aria-labelledby="mode-tab-paste"
+            hidden={mode !== 'paste'}
+          >
+            {mode === 'paste' && (
+              <div>
+                <label
+                  style={{
+                    fontSize: 12,
+                    color: 'var(--text-2)',
+                    fontFamily: 'var(--mono)',
+                    display: 'block',
+                    marginBottom: 8,
+                  }}
+                >
+                  Paste OptimizeRequest JSON:
+                </label>
+                <textarea
+                  rows={10}
+                  value={pasteText}
+                  onChange={(e) => {
+                    setPasteText(e.target.value)
+                    setPasteError('')
+                  }}
+                  placeholder={
+                    '{\n  "depot": {...},\n  "deliveries": [...],\n  "vehicles": {...}\n}'
+                  }
+                  style={{
+                    width: '100%',
+                    fontFamily: 'var(--mono)',
+                    fontSize: 12,
+                    resize: 'vertical',
+                    background: 'var(--bg-2)',
+                    border: `1px solid ${pasteError ? 'var(--red)' : 'var(--border)'}`,
+                    borderRadius: 'var(--radius)',
+                    padding: 12,
+                    color: 'var(--text)',
+                  }}
+                />
+                {pasteError && (
+                  <p
+                    role="alert"
+                    style={{
+                      color: 'var(--red)',
+                      fontSize: 11,
+                      marginTop: 4,
+                      fontFamily: 'var(--mono)',
+                    }}
+                  >
+                    ✗ {pasteError}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Routing backend */}
@@ -468,6 +530,16 @@ export default function UploadPanel({ phase, error, onSubmit }) {
             <label htmlFor="traffic" style={{ fontSize: 13, cursor: 'pointer' }}>
               Real-time traffic-aware routing
             </label>
+            <span
+              style={{
+                fontSize: 10,
+                fontFamily: 'var(--mono)',
+                color: 'var(--text-3)',
+                marginLeft: 'auto',
+              }}
+            >
+              requires ORS_API_KEY on the server
+            </span>
           </div>
         )}
 
@@ -619,6 +691,7 @@ export default function UploadPanel({ phase, error, onSubmit }) {
         {/* Error */}
         {error && (
           <div
+            role="alert"
             style={{
               background: 'var(--red-dim)',
               border: '1px solid var(--red)',
@@ -649,7 +722,7 @@ export default function UploadPanel({ phase, error, onSubmit }) {
             fontFamily: 'var(--display)',
             letterSpacing: '-0.01em',
             background: disabled ? 'var(--bg-3)' : 'var(--accent)',
-            color: disabled ? 'var(--text-3)' : '#000',
+            color: disabled ? 'var(--text-3)' : 'var(--on-accent)',
             border: 'none',
             borderRadius: 'var(--radius-lg)',
             cursor: disabled ? 'not-allowed' : 'pointer',
@@ -665,9 +738,11 @@ export default function UploadPanel({ phase, error, onSubmit }) {
 }
 
 function Field({ label, children }) {
+  const id = useId()
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       <label
+        htmlFor={id}
         style={{
           fontSize: 11,
           fontFamily: 'var(--mono)',
@@ -678,7 +753,7 @@ function Field({ label, children }) {
       >
         {label}
       </label>
-      {children}
+      {cloneElement(children, { id })}
     </div>
   )
 }
@@ -696,7 +771,13 @@ function GenerateForm({
   setSpeed,
 }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+        gap: 16,
+      }}
+    >
       <Field label="City">
         <select value={city} onChange={(e) => setCity(e.target.value)} style={{ width: '100%' }}>
           {['london', 'berlin', 'new_york', 'paris', 'tokyo'].map((c) => (

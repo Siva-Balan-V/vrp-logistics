@@ -74,7 +74,7 @@ export default function DriversPage() {
             onClick={() => setShowForm(!showForm)}
             style={{
               background: 'var(--accent)',
-              color: '#000',
+              color: 'var(--on-accent)',
               fontWeight: 600,
               border: 'none',
               borderRadius: 'var(--radius)',
@@ -158,7 +158,7 @@ export default function DriversPage() {
               onClick={handleCreate}
               style={{
                 background: 'var(--accent)',
-                color: '#000',
+                color: 'var(--on-accent)',
                 fontWeight: 600,
                 border: 'none',
                 borderRadius: 'var(--radius)',

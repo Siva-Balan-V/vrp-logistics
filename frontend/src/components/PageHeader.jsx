@@ -5,6 +5,7 @@ import { useTheme } from '../context/ThemeContext.jsx'
 const NAV_LINKS = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/history', label: 'History' },
+  { href: '/dispatch', label: 'Dispatch' },
   { href: '/drivers', label: 'Drivers' },
   { href: '/notifications', label: 'Notifications' },
   { href: '/billing', label: 'Billing' },
@@ -43,7 +44,10 @@ export default function PageHeader({ badge, actions }) {
             </a>
           ))}
           {user?.role === 'admin' && (
-            <a href="/admin" style={{ ...s.navLink, color: 'var(--accent)', borderColor: 'var(--accent)' }}>
+            <a
+              href="/admin"
+              style={{ ...s.navLink, color: 'var(--accent)', borderColor: 'var(--accent)' }}
+            >
               Admin
             </a>
           )}
@@ -61,34 +65,74 @@ export default function PageHeader({ badge, actions }) {
           aria-label="Toggle navigation menu"
           aria-expanded={menuOpen}
         >
-          <span style={{ ...s.burgerLine, transform: menuOpen ? 'rotate(45deg) translate(4px, 4px)' : 'none' }} />
+          <span
+            style={{
+              ...s.burgerLine,
+              transform: menuOpen ? 'rotate(45deg) translate(4px, 4px)' : 'none',
+            }}
+          />
           <span style={{ ...s.burgerLine, opacity: menuOpen ? 0 : 1 }} />
-          <span style={{ ...s.burgerLine, transform: menuOpen ? 'rotate(-45deg) translate(4px, -4px)' : 'none' }} />
+          <span
+            style={{
+              ...s.burgerLine,
+              transform: menuOpen ? 'rotate(-45deg) translate(4px, -4px)' : 'none',
+            }}
+          />
         </button>
       </div>
 
       {menuOpen && (
         <div className="page-mobile-menu" style={s.mobileMenu} role="menu">
           {NAV_LINKS.map((l) => (
-            <a key={l.href} href={l.href} style={s.mobileLink} role="menuitem" onClick={() => setMenuOpen(false)}>
+            <a
+              key={l.href}
+              href={l.href}
+              style={s.mobileLink}
+              role="menuitem"
+              onClick={() => setMenuOpen(false)}
+            >
               {l.label}
             </a>
           ))}
           {user?.role === 'admin' && (
-            <a href="/admin" style={s.mobileLink} role="menuitem" onClick={() => setMenuOpen(false)}>
+            <a
+              href="/admin"
+              style={s.mobileLink}
+              role="menuitem"
+              onClick={() => setMenuOpen(false)}
+            >
               Admin
             </a>
           )}
           {user?.role === 'admin' && (
-            <a href="/api-keys" style={s.mobileLink} role="menuitem" onClick={() => setMenuOpen(false)}>
+            <a
+              href="/api-keys"
+              style={s.mobileLink}
+              role="menuitem"
+              onClick={() => setMenuOpen(false)}
+            >
               API Keys
             </a>
           )}
           {actions && <div style={{ padding: '4px 24px' }}>{actions}</div>}
           <div style={s.mobileUserRow}>
             {user && <span style={s.userEmail}>{user.email}</span>}
-            <button onClick={() => { logout(); setMenuOpen(false) }} style={s.mobileLogout}>Logout</button>
-            <button onClick={() => { toggleTheme(); setMenuOpen(false) }} style={s.themeBtn}>
+            <button
+              onClick={() => {
+                logout()
+                setMenuOpen(false)
+              }}
+              style={s.mobileLogout}
+            >
+              Logout
+            </button>
+            <button
+              onClick={() => {
+                toggleTheme()
+                setMenuOpen(false)
+              }}
+              style={s.themeBtn}
+            >
               {theme === 'dark' ? '☀' : '☾'}
             </button>
           </div>
@@ -103,7 +147,11 @@ export default function PageHeader({ badge, actions }) {
             Logout
           </button>
         )}
-        <button onClick={toggleTheme} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} style={s.themeBtn}>
+        <button
+          onClick={toggleTheme}
+          title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          style={s.themeBtn}
+        >
           {theme === 'dark' ? '☀' : '☾'}
         </button>
         <a href="/docs" target="_blank" rel="noopener noreferrer" style={s.navLink}>

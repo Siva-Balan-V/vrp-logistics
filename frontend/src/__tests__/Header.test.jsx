@@ -30,6 +30,13 @@ describe('Header', () => {
     expect(link.closest('a')).toHaveAttribute('href', '/docs')
   })
 
+  it('renders the Dispatch nav link', () => {
+    renderWithProviders(<Header onReset={() => {}} phase="idle" />)
+    const link = screen.getByText('Dispatch')
+    expect(link).toBeInTheDocument()
+    expect(link.closest('a')).toHaveAttribute('href', '/dispatch')
+  })
+
   it('shows SOLUTION READY when phase is results', () => {
     renderWithProviders(<Header onReset={() => {}} phase="results" />)
     expect(screen.getByText('SOLUTION READY')).toBeInTheDocument()

@@ -1,6 +1,6 @@
 services:
   backend:
-    image: ghcr.io/your-org/vrp-backend:latest
+    image: ghcr.io/siva-balan-v/vrp-backend:${VERSION:-latest}
     container_name: vrp-backend
     restart: always
     ports:
@@ -36,7 +36,7 @@ services:
         max-file: "3"
 
   frontend:
-    image: ghcr.io/your-org/vrp-frontend:latest
+    image: ghcr.io/siva-balan-v/vrp-frontend:${VERSION:-latest}
     container_name: vrp-frontend
     restart: always
     ports:

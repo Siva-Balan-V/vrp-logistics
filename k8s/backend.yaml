@@ -2,6 +2,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  namespace: vrp-production
   name: vrp-backend
 spec:
   replicas: 2
@@ -19,7 +20,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: ghcr.io/your-org/vrp-backend:latest
+          image: ghcr.io/siva-balan-v/vrp-backend:latest
           ports:
             - containerPort: 8000
           envFrom:
@@ -53,6 +54,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  namespace: vrp-production
   name: vrp-backend
 spec:
   selector:
@@ -65,6 +67,7 @@ spec:
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
+  namespace: vrp-production
   name: vrp-backend
 spec:
   scaleTargetRef:

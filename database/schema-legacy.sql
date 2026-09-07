@@ -1,5 +1,9 @@
--- RouteForge VRP Optimizer – PostgreSQL Schema
--- Run with: psql -U postgres -d vrp -f schema.sql
+-- RouteForge VRP Optimizer – PostgreSQL Schema (LEGACY)
+-- This file is SUPERSEDED by Alembic migrations under backend/alembic/.
+-- Do not run directly against new databases; use `alembic upgrade head` instead.
+-- Kept only for reference and for bootstrapping legacy databases that predate
+-- the migration history.
+-- Run with: psql -U postgres -d vrp -f schema-legacy.sql
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 

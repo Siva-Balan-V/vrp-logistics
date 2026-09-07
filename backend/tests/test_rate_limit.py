@@ -35,6 +35,13 @@ class TestOptimizeLimitScope:
             assert client.post("/api/v1/optimize-routes").status_code == 429
             assert client.get("/api/v1/optimize-routes/abc/status").status_code == 200
 
+    def test_replan_consumes_optimize_budget(self):
+        app = _make_app(optimize_limit=2, default_limit=1000)
+        with TestClient(app) as client:
+            for _ in range(2):
+                assert client.post("/api/v1/optimize-routes/replan").status_code != 429
+            assert client.post("/api/v1/optimize-routes/replan").status_code == 429
+
 
 class TestForwardedForHandling:
     def test_forwarded_for_ignored_by_default(self):

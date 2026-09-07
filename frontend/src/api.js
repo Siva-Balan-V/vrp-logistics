@@ -69,6 +69,10 @@ export async function getJobResult(jobId, token) {
   return apiFetch(`/api/v1/routes/${jobId}`, { token })
 }
 
+export async function fetchDirections(jobId, routeIndex, token) {
+  return apiFetch(`/api/v1/routes/${jobId}/directions/route/${routeIndex}`, { token })
+}
+
 export async function listJobs(token, limit = 20) {
   return apiFetch(`/api/v1/routes?limit=${limit}`, { token })
 }
