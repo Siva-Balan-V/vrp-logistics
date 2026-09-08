@@ -1,7 +1,39 @@
 # CI Pipeline Fix & Expansion Plan
 
-Status: **proposed** — generated after reproducing failures on `main`
+Status: **implemented (Phases 1–2 on `fix/ci-green` → PR #7, and `feat/ci-pipelines` → PR #8)**
+– generated after reproducing failures on `main`
 Reviewed against: `origin/main` (post PR #5 `feat/turn-by-turn`, PR #6 `chore/code-quality-phase6`)
+
+## Implementation status
+
+| Item | Status |
+|------|--------|
+| 1.1 config.py indent + ruff pin | ✅ PR #7 |
+| 1.2 setup-node cache path + Node 22 + action bumps | ✅ PR #7 |
+| 1.3 GhCR token fallback | ✅ code in PR #7; needs `GHCR_TOKEN` secret + blue-green secrets to actually publish |
+| 2.1 permissions/concurrency + deploy CI gate | ✅ PR #8 |
+| 2.2 coverage gates (pytest-cov + vitest coverage) | ✅ PR #8 |
+| 2.3 security.yml (pip-audit, npm audit, gitleaks) | ✅ PR #8 |
+| 2.4 Trivy scan | ✅ PR #8 (report-only) |
+| 2.5 db-migrations.yml | ✅ PR #8 |
+| 2.6 e2e.yml compose smoke | ✅ PR #8 |
+| 2.7 dependabot.yml | ✅ PR #8 |
+| 2.8 PR template + CODEOWNERS | ✅ PR #8 |
+| 2.9 docs (this file + CONTRIBUTING) | ✅ |
+| 3 coverage ratchet | ⏳ next PRs |
+| 3 branch protection (required checks) | ⛔ needs admin |
+| 3 eslint `--max-warnings 0` burn-down | ⏳ subsequent PRs |
+
+### Known deviations
+- **Backend coverage excludes `tests/test_api.py`**: `pytest --cov` deadlocks (hangs
+  indefinitely) when tracing FastAPI `TestClient` requests via httpx threads — reproduced
+  locally with `concurrency=thread` and various rcfile settings. The safe-subset coverage
+  job (`backend-coverage`) runs everything except `test_api.py`, report-only by design.
+  `test_api.py` still runs uncovered in the normal `backend-test` job.
+- **Trivy + `npm audit`/`pip-audit` are report-only** (`continue-on-error` /
+  `exit-code: 0`) so the initial baseline can be reviewed before hard-gating.
+- Frontend coverage thresholds were set to just under the measured baseline
+  (32.8% stmts / 59.4% branch / 26.7% funcs) and must be ratcheted up each PR.
 
 ---
 

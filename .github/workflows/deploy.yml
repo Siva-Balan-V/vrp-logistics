@@ -14,6 +14,7 @@ on:
 permissions:
   contents: read
   packages: write
+  checks: read
 
 concurrency:
   group: deploy-${{ github.ref }}
@@ -53,6 +54,29 @@ jobs:
           else
             echo "tag=${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Require CI green on main push
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const head = context.sha;
+            for (let i = 0; i < 60; i++) {
+              const { data } = await github.rest.checks.listForRef({
+                owner, repo, ref: head, status: 'completed'
+              });
+              const ci = data.check_runs.filter((r) => r.name.startsWith('CI'));
+              if (ci.length > 0) {
+                const failed = ci.some((r) =>
+                  ['failure', 'timed_out', 'action_required'].includes(r.conclusion));
+                if (failed) throw new Error(`CI checks failed: ${ci.filter((r) => r.conclusion === 'failure').map((r) => r.name).join(', ')}`);
+                if (ci.every((r) => r.conclusion === 'success')) return;
+              }
+              await new Promise((r) => setTimeout(r, 10000));
+            }
+            throw new Error('Timed out waiting for CI checks to complete');
 
       - name: Build and push backend image
         uses: docker/build-push-action@v6

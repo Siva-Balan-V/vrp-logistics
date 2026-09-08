@@ -1,0 +1,63 @@
+name: E2E Smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Compose up + health smoke
+    runs-on: ubuntu-latest
+    env:
+      REDIS_PASSWORD: ""
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build compose images
+        run: docker compose -f docker-compose.yml build
+
+      - name: Start stack
+        run: docker compose -f docker-compose.yml up -d
+
+      - name: Wait for backend health
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/health >/tmp/health.json; then
+              echo "backend healthy:"; cat /tmp/health.json; break
+            fi
+            if [ "$i" = "30" ]; then echo "backend not healthy"; exit 1; fi
+            sleep 5
+          done
+          test -s /tmp/health.json
+
+      - name: Smoke an optimization request
+        run: |
+          curl -fsS -X POST http://localhost:8000/api/v1/optimize-routes \
+            -H 'Content-Type: application/json' \
+            -d '{
+              "depot": {"id": 0, "lat": 51.505, "lon": -0.09},
+              "deliveries": [
+                {"id": 101, "lat": 51.51, "lon": -0.08, "demand": 10},
+                {"id": 102, "lat": 51.52, "lon": -0.10, "demand": 5}
+              ],
+              "vehicles": {"count": 2, "capacity": 100, "max_route_duration_seconds": 9000}
+            }' >/tmp/opt.json
+          python3 -c "import json; d=json.load(open('/tmp/opt.json')); assert d.get('job_id'), d; print('optimization ok, job_id=', d['job_id'])"
+
+      - name: Show docker status
+        if: always()
+        run: docker compose -f docker-compose.yml ps
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.yml down -v

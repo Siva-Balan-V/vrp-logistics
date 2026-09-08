@@ -10,6 +10,13 @@ env:
   PYTHON_VERSION: "3.11"
   NODE_VERSION: "22"
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   backend-lint:
     name: Backend Lint
@@ -45,6 +52,31 @@ jobs:
       - name: Run tests
         run: pytest -v --tb=short
 
+  backend-coverage:
+    name: Backend Coverage
+    runs-on: ubuntu-latest
+    continue-on-error: true # timing-sensitive async tests can fail under coverage tracing; enable gate after fixing
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Collect coverage (safe subset)
+        run: |
+          pytest -q --cov=app --cov-report=term --cov-report=xml:coverage.xml \
+            tests/ --ignore=tests/test_api.py
+      - name: Upload backend coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage.xml
+          if-no-files-found: ignore
+
   frontend-lint:
     name: Frontend Lint
     runs-on: ubuntu-latest
@@ -79,7 +111,13 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - name: Run tests
-        run: npm test
+        run: npm run test:ci
+      - name: Upload frontend coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/
+          if-no-files-found: ignore
 
   frontend-build:
     name: Frontend Build
@@ -107,3 +145,19 @@ jobs:
         run: docker build -t vrp-backend ./backend
       - name: Build frontend Docker image
         run: docker build -t vrp-frontend ./frontend
+      - name: Scan backend image (Trivy)
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: vrp-backend
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "0" # baseline/report-only; set to "1" to gate on HIGH/CRITICAL
+          format: table
+      - name: Scan frontend image (Trivy)
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: vrp-frontend
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "0" # baseline/report-only; set to "1" to gate on HIGH/CRITICAL
+          format: table

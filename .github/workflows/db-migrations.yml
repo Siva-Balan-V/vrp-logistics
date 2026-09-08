@@ -1,0 +1,53 @@
+name: DB Migrations
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  migrate:
+    name: Alembic upgrade head
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: vrp
+          POSTGRES_USER: vrp
+          POSTGRES_PASSWORD: vrp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vrp"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATABASE_URL: postgresql+asyncpg://vrp:vrp@localhost:5432/vrp
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Run migrations
+        run: alembic upgrade head
+      - name: Verify migration state
+        run: |
+          alembic current
+          alembic heads
+          test "$(alembic heads --resolve-dependencies)" != ""
