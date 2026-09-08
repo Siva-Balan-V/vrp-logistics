@@ -146,7 +146,7 @@ jobs:
       - name: Build frontend Docker image
         run: docker build -t vrp-frontend ./frontend
       - name: Scan backend image (Trivy)
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@v0.34.0
         with:
           image-ref: vrp-backend
           severity: HIGH,CRITICAL
@@ -154,7 +154,7 @@ jobs:
           exit-code: "0" # baseline/report-only; set to "1" to gate on HIGH/CRITICAL
           format: table
       - name: Scan frontend image (Trivy)
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@v0.34.0
         with:
           image-ref: vrp-frontend
           severity: HIGH,CRITICAL
