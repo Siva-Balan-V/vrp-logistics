@@ -67,6 +67,10 @@ jobs:
         if: always()
         run: docker compose -f docker-compose.yml ps
 
+      - name: Backend logs
+        if: always()
+        run: docker compose -f docker-compose.yml logs --no-color backend | tail -80
+
       - name: Tear down
         if: always()
         run: docker compose -f docker-compose.yml down -v
