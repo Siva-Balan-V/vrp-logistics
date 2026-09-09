@@ -36,5 +36,15 @@ docker-compose.override.yml
 # Logs
 *.log
 
+# Test coverage / build artifacts
+frontend/coverage/
+frontend/dist/
+backend/coverage.xml
+.coverage
+backend/.coverage
+htmlcov/
+.pytest_cache/
+*.pyc
+
 # MiMo agent
 .mimocode/

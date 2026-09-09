@@ -13,6 +13,10 @@ RUN pip install --default-timeout=300 --no-cache-dir -r requirements.txt
 # Copy application code
 COPY app/ ./app/
 
+# Alembic migration runtime (app self-migrates on startup)
+COPY alembic.ini .
+COPY alembic/ ./alembic/
+
 # Non-root user for security
 RUN useradd -m appuser && chown -R appuser /app
 USER appuser

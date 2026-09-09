@@ -77,13 +77,19 @@ If a hook reformats a file mid-commit, re-`git add` the file and re-commit.
 
 ### Backend (run from `backend/`)
 
-**Important:** the full test suite and the integration tests require a running
-Postgres and Redis. For a fast offline run that does not need a database, prefix
-commands with the following environment overrides (this is what CI does):
+**Important:** for a fast offline run that does not need Postgres/Redis, run from a
+**clean environment** (matching the CI runner). Do **not** use `DATABASE_URL=`
+empty assignments — pydantic-settings treats an empty var as *set*, which flips
+`test_settings_defaults` and fails locally while CI passes.
 
 ```bash
-DATABASE_URL= REDIS_URL= ROUTING_BACKEND=haversine .venv/bin/python -m pytest
+cd backend
+env -i PATH="$PATH" HOME="$HOME" .venv/bin/python -m pytest -q --cov=app --cov-report=term-missing
 ```
+
+Coverage note: the standalone coverage run intentionally excludes `tests/test_api.py`
+(coverage tracing deadlocks on FastAPI TestClient threads); that file always runs in
+the plain, non-coverage suite below.
 
 Lint and format:
 
@@ -93,11 +99,11 @@ ruff check .
 ruff format --check .
 ```
 
-Run the full test suite:
+Run the full test suite (includes `tests/test_api.py`):
 
 ```bash
 cd backend
-DATABASE_URL= REDIS_URL= ROUTING_BACKEND=haversine .venv/bin/python -m pytest -v
+env -i PATH="$PATH" HOME="$HOME" .venv/bin/python -m pytest -v
 ```
 
 ### Frontend (run from `frontend/`)
@@ -105,6 +111,7 @@ DATABASE_URL= REDIS_URL= ROUTING_BACKEND=haversine .venv/bin/python -m pytest -v
 ```bash
 cd frontend
 npx vitest run
+npm run test:ci        # vitest + coverage report (thresholds configured in vite.config.js)
 npx eslint src/
 npx prettier --check "src/**/*.{js,jsx,css,json}"
 ```

@@ -28,5 +28,24 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: './src/__tests__/setup.js',
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json-summary', 'html'],
+      reportsDirectory: './coverage',
+      exclude: [
+        'src/__tests__/**',
+        'src/main.jsx',
+        'src/context/**',
+        'src/hooks/**',
+        '**/*.test.{js,jsx}',
+        '**/*.config.{js,jsx}',
+      ],
+      thresholds: {
+        lines: 30,
+        functions: 25,
+        branches: 55,
+        statements: 30,
+      },
+    },
   },
 })

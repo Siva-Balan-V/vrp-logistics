@@ -6,6 +6,7 @@ PostgreSQL is optional — app works without DATABASE_URL.
 from __future__ import annotations
 
 import asyncio
+import threading
 from collections.abc import AsyncGenerator
 from pathlib import Path
 
@@ -52,7 +53,12 @@ def is_db_enabled() -> bool:
 
 
 def run_migrations(database_url: str) -> None:
-    """Run alembic upgrade head synchronously (called once at startup)."""
+    """Run alembic upgrade head synchronously (called once at startup).
+
+    Runs in a dedicated thread because alembic's async env uses
+    asyncio.run(), which raises "cannot be called from a running event
+    loop" when invoked from the app's lifespan.
+    """
     from alembic.config import Config
 
     from alembic import command
@@ -63,11 +69,17 @@ def run_migrations(database_url: str) -> None:
         return
     cfg = Config(str(alembic_ini))
     cfg.set_main_option("sqlalchemy.url", database_url)
-    try:
-        command.upgrade(cfg, "head")
-        logger.info("migrations_applied")
-    except Exception:
-        logger.exception("migrations_failed")
+
+    def _upgrade() -> None:
+        try:
+            command.upgrade(cfg, "head")
+            logger.info("migrations_applied")
+        except Exception:
+            logger.exception("migrations_failed")
+
+    runner = threading.Thread(target=_upgrade, name="db-migrations", daemon=True)
+    runner.start()
+    runner.join()
 
 
 async def get_db() -> AsyncGenerator[AsyncSession | None, None]:
