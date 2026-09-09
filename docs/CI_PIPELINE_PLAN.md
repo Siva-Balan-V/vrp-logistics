@@ -32,8 +32,30 @@ Reviewed against: `origin/main` (post PR #5 `feat/turn-by-turn`, PR #6 `chore/co
   `test_api.py` still runs uncovered in the normal `backend-test` job.
 - **Trivy + `npm audit`/`pip-audit` are report-only** (`continue-on-error` /
   `exit-code: 0`) so the initial baseline can be reviewed before hard-gating.
+- Trivy runs as a docker-socket scan (`aquasecurity/trivy:0.48.0`): the official
+  `trivy-action` installer (`contrib/install.sh`) fails on GitHub runners for the
+  release it resolves, so the action is not used.
 - Frontend coverage thresholds were set to just under the measured baseline
   (32.8% stmts / 59.4% branch / 26.7% funcs) and must be ratcheted up each PR.
+
+### Bugs the new pipelines caught (fixed in PR #8)
+- **Alembic history could not bootstrap a fresh DB**: no migration created the base
+  tables (`companies`, `users`, …); the root `50e7a5c47b13` migration added an
+  `api_keys` FK → `companies` that nothing had created. Added initial-schema migration
+  `2f4a6c8e0b1d` (ported from `database/schema-legacy.sql`, sans the duplicate
+  `api_keys` table) as the new root and re-parented `50e7a5c47b13` onto it.
+- **Backend image shipped without alembic runtime**: `Dockerfile` only copied `app/`,
+  so `run_migrations` bailed on a missing `alembic.ini`. Now `COPY alembic.ini` +
+  `COPY alembic/`.
+- **Startup migrations never ran in the container**: `run_migrations` called
+  `alembic upgrade` synchronously inside FastAPI lifespan, and alembic's async env
+  calls `asyncio.run()` — which raises "cannot be called from a running event loop" in
+  a live loop. The exception was swallowed, so containers ran against an empty schema
+  (e2e: `/health` green, `companies` missing). Fixed by running migrations in a
+  dedicated thread.
+- **E2E optimize call 401s unauthenticated**: `optimize-routes` requires a real
+  principal. The smoke seeds a `companies` + `api_keys` row (key_hash =
+  `sha256("rf_e2e_smoke")`) and passes `X-API-Key`.
 
 ---
 
