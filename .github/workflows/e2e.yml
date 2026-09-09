@@ -42,8 +42,17 @@ jobs:
 
       - name: Smoke an optimization request
         run: |
+          SMOKE_KEY="rf_e2e_smoke"
+          SMOKE_HASH="$(printf '%s' "$SMOKE_KEY" | sha256sum | cut -d' ' -f1)"
+          docker exec vrp-postgres psql -U postgres -d vrp -v ON_ERROR_STOP=1 -c \
+            "WITH c AS (
+               INSERT INTO companies (name, plan) VALUES ('E2E Smoke', 'free') RETURNING id
+             )
+             INSERT INTO api_keys (id, company_id, name, key_hash, prefix, permissions, is_active)
+             SELECT gen_random_uuid(), id, 'smoke', '$SMOKE_HASH', 'rf_e2e_smoke', '[\"optimize\",\"read\"]', true FROM c;"
           curl -fsS -X POST http://localhost:8000/api/v1/optimize-routes \
             -H 'Content-Type: application/json' \
+            -H "X-API-Key: $SMOKE_KEY" \
             -d '{
               "depot": {"id": 0, "lat": 51.505, "lon": -0.09},
               "deliveries": [
