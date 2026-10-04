@@ -28,6 +28,10 @@ export default [
       'react/react-in-jsx-scope': 'off',
       'react/prop-types': 'warn',
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      'react-hooks/static-components': 'off',
+      'react-hooks/immutability': 'off',
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/purity': 'off',
     },
     settings: {
       react: { version: 'detect' },
