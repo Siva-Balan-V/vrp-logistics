@@ -10,6 +10,28 @@ mainline. Internally the app advertises version `1.0.0`.
 
 ## [Unreleased]
 
+### Added
+- CI pipeline overhaul (PRs #7 and #8, tracked in `docs/CI_PIPELINE_PLAN.md`):
+  permissions and concurrency guards plus a deploy gate; `pytest-cov` and vitest
+  coverage gates; `security.yml` (pip-audit, npm audit, gitleaks); container
+  scanning via Trivy; `db-migrations.yml` (alembic upgrade head against a real
+  Postgres); `e2e.yml` compose smoke; `dependabot.yml`; PR template and
+  CODEOWNERS. Trivy, pip-audit and npm audit are report-only pending baseline
+  review.
+
+### Fixed
+- Alembic could not bootstrap a fresh database: no migration created the base
+  tables, and the root migration added an `api_keys` foreign key to a
+  `companies` table that nothing created. Added initial-schema migration
+  `2f4a6c8e0b1d` and re-parented the chain onto it.
+- Backend image shipped without the alembic runtime (`alembic.ini` and
+  `alembic/` were not copied), so container startup silently skipped migrations.
+- Startup migrations never ran in the container: `alembic upgrade` was called
+  synchronously inside the FastAPI lifespan, and alembic's async environment
+  calls `asyncio.run()`, which raises inside a live event loop. The exception
+  was swallowed, leaving containers on an empty schema while `/health` stayed
+  green. Migrations now run in a dedicated thread.
+
 ### Changed
 - `react-router-dom` 6.23.0 → 7.18.4 (PR #19). No source changes required: the
   app uses only the declarative APIs (`BrowserRouter`, `Routes`, `Route`, `Link`,
