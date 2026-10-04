@@ -33,11 +33,45 @@ mainline. Internally the app advertises version `1.0.0`.
   green. Migrations now run in a dedicated thread.
 
 ### Changed
+- Backend runtime dependencies (dependabot #12, reworked): 21 packages bumped —
+  `fastapi` 0.111.0 → 0.141.1, `uvicorn` 0.30.1 → 0.52.4, `httpx` 0.27.0 →
+  0.28.1, `pydantic` 2.7.4 → 2.13.5, `sqlalchemy` 2.0.31 → 2.0.52, `redis`
+  5.0.6 → 8.1.0, `cachetools` 5.3.3 → 7.1.8, `alembic` 1.13.1 → 1.19.2,
+  `structlog` 24.2.0 → 26.1.0, `stripe` 10.0.0 → 15.6.1, `twilio` 9.0.0 →
+  9.11.0, `websockets` 17.0 → 17.1, and others. Two bumps deliberately held
+  back — see the note below.
+- `ruff` 0.16.0 → 0.16.6, moved in lockstep with `.pre-commit-config.yaml` so the
+  pin parity established in PR #7 holds. Dependabot proposed loosening the pin to
+  `ruff>=0.16.6`, which would have restored the non-determinism the exact pin
+  exists to prevent (`docs/CI_PIPELINE_PLAN.md:127`).
 - `react-router-dom` 6.23.0 → 7.18.4 (PR #19). No source changes required: the
   app uses only the declarative APIs (`BrowserRouter`, `Routes`, `Route`, `Link`,
   `useNavigate`, `useParams`, `useSearchParams`, `Navigate`), which v7 keeps.
   The v6→v7 data-router codemod does not apply. Verified locally — 36/36
   frontend tests, eslint 0 errors, prettier and `vite build` clean.
+
+### Dependencies held back
+- **`numpy` capped at `>=2.4.2,<2.5`.** `numpy` 2.5.0 dropped cp311 wheels
+  entirely and declares `requires_python >=3.12`. Both CI
+  (`.github/workflows/ci.yml:10`) and the shipped image
+  (`backend/Dockerfile:1`, `python:3.11-slim`) are Python 3.11, so the
+  dependabot-proposed `numpy>=2.5.3` breaks the install in *both*, not just CI.
+  2.4.2 is the last release with cp311 wheels. Unblocking `numpy` 2.5+ requires
+  raising the Python floor to 3.12, which also clears the frontend's undocumented
+  Node floor (jsdom 30 needs ≥22.22.2).
+- **`bcrypt` held at `==4.0.1`.** `bcrypt` 5.0.0 breaks `passlib` 1.7.4, which
+  `app/services/auth.py:21` uses for `CryptContext`. `hash_password` and
+  `verify_password` have **no test coverage**, so the migration off the
+  unmaintained `passlib` (last release 2020) needs tests first. It is a small,
+  well-bounded change — only `auth.py:25,29` touch the context.
+- Frontend: React 19.3.0 (PR #21); vite 8.3.2, `@vitejs/plugin-react` 6.1.1,
+  vitest 5.0.3, `@vitest/coverage-v8` 5.0.3 (PR #22); jsdom 29.1.1 and the
+  testing-library set (PR #25); `eslint-plugin-react` 7.37.5,
+  `eslint-plugin-react-hooks` 7.1.1, `globals` 17.13.0 (PR #27). `eslint` stays
+  on 9 — `eslint-plugin-react@7.37.5`, the newest release, peers `^9.7` and no
+  combination reaches eslint 10 until it ships support.
+- `starlette` 1.7.0 now deprecates `httpx` in `starlette.testclient` and asks for
+  `httpx2`; the warning is benign today and tracked as future frontend work.
 
 ### In progress — Phase 8 tail
 - 8.7 Release hygiene & documentation: this `CHANGELOG.md`, `CONTRIBUTING.md`,
