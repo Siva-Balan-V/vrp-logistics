@@ -8,32 +8,31 @@ into `main`. Branch push state, merge base, and change size are noted for each.
 
 ## Status
 
-PR #19 is **merged** (`ef7934e`, 2026-10-04) — the only dependabot branch that
-was green. Four remain open. Every failure below is a `npm ci` / `pip install`
-resolution error, not a test failure — no dependabot branch has a code-level
-regression.
+Five dependabot branches have been triaged. One merged, two are superseded by a
+combined PR, and two need rework. Every failure below is a `npm ci` /
+`pip install` resolution error, not a test failure — no dependabot branch has a
+code-level regression.
 
-| Branch | PR | CI | Blocker (verified from run logs) |
-|--------|---:|----|------------------------------------|
-| `dependabot/npm_and_yarn/frontend/react-router-dom-7.18.4` | #19 | ✅ **merged** | none |
-| `dependabot/npm_and_yarn/frontend/multi-7f19880bf6` | [#17](https://github.com/Siva-Balan-V/vrp-logistics/pull/17) | 6 fail | `npm ci` ERESOLVE: `@types/react-dom@18.3.7` peers `@types/react@^18` |
-| `dependabot/npm_and_yarn/frontend/multi-de36fa8f59` | [#16](https://github.com/Siva-Balan-V/vrp-logistics/pull/16) | 6 fail | same ERESOLVE — merge jointly with #17 |
-| `dependabot/npm_and_yarn/frontend/dev-deps-f586ce92d0` | [#20](https://github.com/Siva-Balan-V/vrp-logistics/pull/20) | 6 fail | `npm ci` ERESOLVE: `eslint-plugin-react@7.37.5` peers `eslint ≤ 9.7`, PR bumps to 10.11.0 |
-| `dependabot/pip/backend/runtime-deps-9fd38ec251` | [#12](https://github.com/Siva-Balan-V/vrp-logistics/pull/12) | 7 fail | `numpy>=2.5.3` needs Python ≥3.12, CI pins 3.11 → **install fails**; also bcrypt 5.0.0 breaks passlib |
+| Branch | PR | Outcome |
+|--------|---:|---------|
+| `dependabot/npm_and_yarn/frontend/react-router-dom-7.18.4` | #19 | ✅ **merged** (`ef7934e`) |
+| `dependabot/npm_and_yarn/frontend/multi-7f19880bf6` | #17 | ♻️ **closed** — superseded by #21 |
+| `dependabot/npm_and_yarn/frontend/multi-de36fa8f59` | #16 | ♻️ **closed** — superseded by #21 |
+| `dependabot/npm_and_yarn/frontend/dev-deps-f586ce92d0` | [#20](https://github.com/Siva-Balan-V/vrp-logistics/pull/20) | ⛔ 6 fail — `eslint@10.11.0` vs `eslint-plugin-react@7.37.5` peer `eslint ≤ 9.7` |
+| `dependabot/pip/backend/runtime-deps-9fd38ec251` | [#12](https://github.com/Siva-Balan-V/vrp-logistics/pull/12) | ⛔ 7 fail — `numpy>=2.5.3` needs Python ≥3.12, CI pins 3.11; also bcrypt 5.0.0 breaks passlib |
 
 ## Recommended order
 
-Sections below are numbered in this merge order, not by PR number. Step 1 is
-done; #19 is retained as section 1 for reference.
-
-1. ~~**#19** — merge as-is.~~ **Done** (`ef7934e`).
-2. **#16 + #17 → one PR** — combine into a single React 19 bump.
-3. **#20 → rework** — hold `eslint` at `^9`, then re-split toolchain vs lint majors.
-4. **#12 → rework** — fix the numpy floor *and* hold bcrypt; decide on passlib.
+1. ~~**#19** — merge as-is.~~ Done (`ef7934e`).
+2. ~~**#16 + #17 → one PR.~~ Done — [#21](https://github.com/Siva-Balan-V/vrp-logistics/pull/21)
+   (`chore/react-19`) bumps all four React packages in one commit.
+3. **#21 → review and merge** — all frontend checks green locally and on CI.
+4. **#20 → rework** — hold `eslint` at `^9`, then re-split toolchain vs lint majors.
+5. **#12 → rework** — fix the numpy floor *and* hold bcrypt; decide on passlib.
 
 ## Baseline on `main`
 
-Green at `ef7934e` (post-#19), so any failure after a bump is attributable to
+Green at `7458d2b` (post-#19), so any failure after a bump is attributable to
 the bump:
 
 - Backend: `pytest` → 258 passed (Python **3.14** local venv).
@@ -93,79 +92,55 @@ used, so there was nothing to convert.
 
 ---
 
-## 2. `dependabot/npm_and_yarn/frontend/multi-de36fa8f59` → `main` (PR #16)
+## 2. ~~#16 + #17 → one combined PR~~ ✅ replaced by #21
 
-> Base: `main` · 1 commit · +17 / −21 across 2 files
+> PRs [#16](https://github.com/Siva-Balan-V/vrp-logistics/pull/16) and
+> [#17](https://github.com/Siva-Balan-V/vrp-logistics/pull/17) — both **closed**
 
-```markdown
-## Summary
-Bumps `react-dom` 18.3.1 → 19.3.0 and `@types/react-dom` 18.3.0 → 19.3.0 in
-`/frontend`. **Merge together with PR #17 — the two are not independently
-shippable.**
+Both failed `npm ci` with `ERESOLVE`, from opposite directions:
 
-**1 commit · +17 / −21 across 2 files**
-
-## Why
-Same ERESOLVE as PR #17, from the other direction: `react-dom@19` peers
-`react@^19` while `react` is still 18.3.1. Both halves of the React 19 bump must
-land in one commit.
-
-## Verification
-- `npm ci && npm test` → 36/36 passed (run after the combined PR lands).
-- `npm run build` clean.
 ```
-
----
-
-
-## 3. `dependabot/npm_and_yarn/frontend/multi-7f19880bf6` → `main` (PR #17)
-
-> Base: `main` · 1 commit · +10 / −21 across 2 files
-
-```markdown
-## Summary
-Bumps `react` 18.3.1 → 19.3.0 and `@types/react` 18.3.3 → 19.3.0 in
-`/frontend`. **Cannot be merged alone** — it must be combined with PR #16
-(react-dom 19), because on its own `npm ci` cannot resolve the tree.
-
-**1 commit · +10 / −21 across 2 files**
-
-## ⛔ Blocker: split-bump ERESOLVE
-From the run log:
-```
-npm error code ERESOLVE
 npm error While resolving: @types/react-dom@18.3.7
 npm error Found: @types/react@19.3.0
-npm error Could not resolve dependency:
 npm error peer @types/react@"^18.0.0" from @types/react-dom@18.3.7
 ```
-This PR raises `@types/react` to 19 while `@types/react-dom` stays at 18.3.x,
-which peers on `@types/react@^18`. Dependabot split one logical React 19 bump
-across two PRs; each half is individually unsatisfiable.
 
-Fix: close #16 and #17, and open a single PR bumping all four together —
-`react`, `react-dom`, `@types/react`, `@types/react-dom` → 19.x. Then re-run
-dependabot so it does not re-propose them separately.
+- **#17** raised `@types/react` to 19 while `@types/react-dom` stayed on 18.3.x,
+  which peers `@types/react@^18`.
+- **#16** raised `react-dom` to 19 while `react` stayed on 18.3.1, and
+  `react-dom@19` peers `react@^19`.
 
-## Known impact once unblocked
-- React 19 removes `ReactDOM.render`, string refs, legacy context, and the
-  `propTypes` runtime check.
-- **146 `react/prop-types` eslint warnings** (docs/CI_PIPELINE_PLAN.md:25) — the
-  runtime check those warnings stand in for is gone in 19, so this bump should
-  be sequenced with the `lint:strict` burn-down or the warnings become
-  load-bearing.
-- Test roots in `src/__tests__/*.jsx` mount via `ReactDOM.createRoot`; verify the
-  React 19 `act` environment flag still holds.
+Dependabot split one logical bump in half; neither half is installable.
 
-## Verification
-- `npm ci && npm test` → 36/36 passed.
-- `npm run lint && npm run build` clean.
-```
+**Resolution:** [#21](https://github.com/Siva-Balan-V/vrp-logistics/pull/21)
+(`chore/react-19`) bumps all four packages in one commit —
+
+| Package | From | To |
+|---------|------|-----|
+| `react` | 18.3.1 | 19.3.0 |
+| `react-dom` | 18.3.1 | 19.3.0 |
+| `@types/react` | 18.3.3 | 19.3.0 |
+| `@types/react-dom` | 18.3.0 | 19.3.0 |
+
+No source changes needed. Every React 19 removal was checked and all are absent
+from the codebase: `ReactDOM.render`, `hydrate`, `unmountComponentAtNode`,
+`defaultProps`, legacy context (`contextTypes` / `getChildContext` /
+`childContextTypes`), `React.PropTypes`, string refs, argless `useRef()`, and
+`element.ref` access. The app mounts via `ReactDOM.createRoot`
+(`src/main.jsx:9`) and uses only hooks-based refs.
+
+Verified: `npm install` resolves, `npm test` → 36/36, eslint 0 errors /
+175 warnings (unchanged from the React 18 baseline), prettier and `vite build`
+clean. `npm audit` unchanged at 13 findings, all pre-existing toolchain issues
+in vite/vitest/postcss — none in react or any runtime dep.
+
+Carry-forward: the 146 `react/prop-types` warnings are now the only guard for
+prop validation, since React 19 removed the `propTypes` runtime check. Sequence
+with the `--max-warnings 0` burn-down (docs/CI_PIPELINE_PLAN.md:279).
 
 ---
 
-
-## 4. `dependabot/npm_and_yarn/frontend/dev-deps-f586ce92d0` → `main` (PR #20)
+## 3. `dependabot/npm_and_yarn/frontend/dev-deps-f586ce92d0` → `main` (PR #20)
 
 > Base: `main` · 1 commit · +1,596 / −2,275 across 2 files
 
@@ -236,7 +211,7 @@ Once eslint is held back, this PR is still four majors in one commit. Split it:
 ---
 
 
-## 5. `dependabot/pip/backend/runtime-deps-9fd38ec251` → `main` (PR #12)
+## 4. `dependabot/pip/backend/runtime-deps-9fd38ec251` → `main` (PR #12)
 
 > Base: `main` · 1 commit · +23 / −23 across 1 file
 
