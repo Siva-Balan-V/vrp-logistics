@@ -10,6 +10,13 @@ mainline. Internally the app advertises version `1.0.0`.
 
 ## [Unreleased]
 
+### Changed
+- `react-router-dom` 6.23.0 → 7.18.4 (PR #19). No source changes required: the
+  app uses only the declarative APIs (`BrowserRouter`, `Routes`, `Route`, `Link`,
+  `useNavigate`, `useParams`, `useSearchParams`, `Navigate`), which v7 keeps.
+  The v6→v7 data-router codemod does not apply. Verified locally — 36/36
+  frontend tests, eslint 0 errors, prettier and `vite build` clean.
+
 ### In progress — Phase 8 tail
 - 8.7 Release hygiene & documentation: this `CHANGELOG.md`, `CONTRIBUTING.md`,
   a consolidated `docs/PRODUCTION_DEPLOYMENT.md` runbook, and a

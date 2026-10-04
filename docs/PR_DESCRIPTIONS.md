@@ -8,34 +8,33 @@ into `main`. Branch push state, merge base, and change size are noted for each.
 
 ## Status
 
-Every product and CI branch is merged. All 24 local branches and all remote
-branches except the five open dependabot branches are ancestors of `main`, so
-**no feature-branch PRs are outstanding.** The open work is dependency
-upgrades, listed below.
+PR #19 is **merged** (`ef7934e`, 2026-10-04) — the only dependabot branch that
+was green. Four remain open. Every failure below is a `npm ci` / `pip install`
+resolution error, not a test failure — no dependabot branch has a code-level
+regression.
 
 | Branch | PR | CI | Blocker (verified from run logs) |
 |--------|---:|----|------------------------------------|
-| `dependabot/npm_and_yarn/frontend/react-router-dom-7.18.4` | [#19](https://github.com/Siva-Balan-V/vrp-logistics/pull/19) | **12/12 green, CLEAN** | none — **merge this one now** |
+| `dependabot/npm_and_yarn/frontend/react-router-dom-7.18.4` | #19 | ✅ **merged** | none |
 | `dependabot/npm_and_yarn/frontend/multi-7f19880bf6` | [#17](https://github.com/Siva-Balan-V/vrp-logistics/pull/17) | 6 fail | `npm ci` ERESOLVE: `@types/react-dom@18.3.7` peers `@types/react@^18` |
 | `dependabot/npm_and_yarn/frontend/multi-de36fa8f59` | [#16](https://github.com/Siva-Balan-V/vrp-logistics/pull/16) | 6 fail | same ERESOLVE — merge jointly with #17 |
 | `dependabot/npm_and_yarn/frontend/dev-deps-f586ce92d0` | [#20](https://github.com/Siva-Balan-V/vrp-logistics/pull/20) | 6 fail | `npm ci` ERESOLVE: `eslint-plugin-react@7.37.5` peers `eslint ≤ 9.7`, PR bumps to 10.11.0 |
 | `dependabot/pip/backend/runtime-deps-9fd38ec251` | [#12](https://github.com/Siva-Balan-V/vrp-logistics/pull/12) | 7 fail | `numpy>=2.5.3` needs Python ≥3.12, CI pins 3.11 → **install fails**; also bcrypt 5.0.0 breaks passlib |
 
-Every failure above is a `npm ci` / `pip install` resolution error, not a test
-failure — no dependabot branch has a code-level regression.
-
 ## Recommended order
 
-Sections below are numbered in this merge order, not by PR number.
+Sections below are numbered in this merge order, not by PR number. Step 1 is
+done; #19 is retained as section 1 for reference.
 
-1. **#19** — merge as-is. Green, no code changes needed.
+1. ~~**#19** — merge as-is.~~ **Done** (`ef7934e`).
 2. **#16 + #17 → one PR** — combine into a single React 19 bump.
 3. **#20 → rework** — hold `eslint` at `^9`, then re-split toolchain vs lint majors.
 4. **#12 → rework** — fix the numpy floor *and* hold bcrypt; decide on passlib.
 
 ## Baseline on `main`
 
-Green at `5a1711f`, so any failure after a bump is attributable to the bump:
+Green at `ef7934e` (post-#19), so any failure after a bump is attributable to
+the bump:
 
 - Backend: `pytest` → 258 passed (Python **3.14** local venv).
 - Frontend: `npm test` (vitest 2.1.9) → 36/36 passed across 7 files;
@@ -61,39 +60,38 @@ remote-only `copilot/*`): `chore/code-quality-phase6`, `develop`, `docs`,
 ---
 
 
-## 1. `dependabot/npm_and_yarn/frontend/react-router-dom-7.18.4` → `main` (PR #19)
+## 1. `dependabot/npm_and_yarn/frontend/react-router-dom-7.18.4` → `main` (PR #19) ✅ merged
 
-> Base: `main` · 1 commit · +43 / −24 across 2 files
+> Base: `main` · 1 commit · +43 / −24 across 2 files · merged as `ef7934e`
 
 ```markdown
 ## Summary
 Bumps `react-router-dom` 6.23.0 → 7.18.4 in `/frontend`. Despite being a major
-version, **all 12 CI checks pass and no source changes are needed** — merge as-is.
+version, **all 12 CI checks passed and no source changes were needed**.
 
 **1 commit · +43 / −24 across 2 files**
 
 ## Verification
-- `npm ci`, Frontend Lint, Frontend Tests (36/36), Frontend Build, dependency
-  audit: all green.
-- Full check rollup: 12/12 SUCCESS, `mergeStateStatus: CLEAN`.
+- CI: `npm ci`, Frontend Lint, Frontend Tests (36/36), Frontend Build,
+  dependency audit, plus all 6 backend checks — 12/12 SUCCESS, `CLEAN`.
+- Local on `ef7934e`: `npm ci`, 36/36 tests, eslint 0 errors / 175 warnings,
+  prettier and `vite build` clean.
 
-## Note
-The React Router 6 → 7 data-API codemod (`npx @react-router/upgrade`) is not
-required here. v7 keeps the v6 component APIs working, and this codebase stays
-on the declarative `<BrowserRouter>`/`<Routes>` style rather than the data
-routers, so nothing in `src/main.jsx` or the protected-route wrappers changes.
+## Why no codemod was needed
+The React Router 6 → 7 data-API codemod (`npx @react-router/upgrade`) does not
+apply. v7 retains the declarative component APIs, and this codebase uses only
+those:
 
-Worth a manual smoke test before release, since redirect semantics differ
-subtly and no test covers an unauthenticated deep link:
+    src/main.jsx               BrowserRouter
+    src/App.jsx                Routes, Route, useSearchParams
+    src/components/ProtectedRoute.jsx   Navigate
+    src/pages/*.jsx            Link, useNavigate, useParams
 
-    login → optimize → dispatch → route details
-
-    and: deep-link to a protected route unauthenticated, expect redirect to
-    login and back to the original URL.
+None of `createBrowserRouter`, `RouterProvider`, `loaders`, or `actions` is
+used, so there was nothing to convert.
 ```
 
 ---
-
 
 ## 2. `dependabot/npm_and_yarn/frontend/multi-de36fa8f59` → `main` (PR #16)
 
