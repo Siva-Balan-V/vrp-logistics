@@ -24,6 +24,33 @@ Reviewed against: `origin/main` (post PR #5 `feat/turn-by-turn`, PR #6 `chore/co
 | 3 branch protection (required checks) | ⛔ needs admin |
 | 3 eslint `--max-warnings 0` burn-down | ⏳ subsequent PRs (175 warnings) |
 | 3 React Compiler lint rules | ⛔ deferred — see below |
+| 3 Raise Python floor 3.11 → 3.12 | ⛔ deferred — see below |
+| 3 Replace `passlib` | ⛔ deferred — see below |
+
+### Deferred: raise the Python floor to 3.12
+`numpy` 2.5.0 declares `requires_python >=3.12` and ships **no cp311 wheels**.
+Both CI (`.github/workflows/ci.yml:10`, `PYTHON_VERSION: "3.11"`) and the shipped
+image (`backend/Dockerfile:1`, `python:3.11-slim`) are 3.11, so `numpy` is
+currently capped at `>=2.4.2,<2.5` — 2.4.2 is the last release with cp311 wheels.
+
+Raising the floor to 3.12 unblocks `numpy` 2.5+ and clears the frontend's
+separately undocumented Node floor (`jsdom` 30 needs Node ≥22.22.2; nothing
+records it — no `.nvmrc`, no `engines` field). Do both together: record the
+floors in `engines`, `.nvmrc`, and the Dockerfiles so the next bump fails loudly
+at resolution instead of at `pip install`.
+
+### Deferred: replace `passlib`
+`bcrypt` is pinned to `==4.0.1` because `bcrypt` 5.0.0 breaks `passlib` 1.7.4
+(`AttributeError: module 'bcrypt' has no attribute '__about__'`, then
+`ValueError: password cannot be longer than 72 bytes`). `passlib`'s last release
+was 2020, so this pin is a slow leak, not a stable state.
+
+The migration is small: `app/services/auth.py:21` is the only `CryptContext`
+construction, and only `hash_password` / `verify_password` (lines 25, 29) use it.
+The blocker is that **neither function has any test coverage** — `grep` for
+`hash_password|verify_password` across `tests/` returns nothing. Write tests for
+both first, then swap to `bcrypt.hashpw` / `bcrypt.checkpw` and decide explicitly
+how to handle `bcrypt` 5's hard 72-byte password limit (reject vs pre-truncate).
 
 ### Deferred: React Compiler lint rules
 `eslint-plugin-react-hooks` 7 moved four React Compiler rules into its
