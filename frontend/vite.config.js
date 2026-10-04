@@ -32,6 +32,11 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'json-summary', 'html'],
       reportsDirectory: './coverage',
+      // Vitest 3 dropped the old `coverage.all` default. Without an explicit
+      // include, only files imported during the test run are reported, which
+      // silently shrank the report from 23 files to 9 and flattered every
+      // percentage. Keep this in sync with `exclude` below.
+      include: ['src/**/*.{js,jsx}'],
       exclude: [
         'src/__tests__/**',
         'src/main.jsx',
@@ -41,10 +46,16 @@ export default defineConfig({
         '**/*.config.{js,jsx}',
       ],
       thresholds: {
-        lines: 30,
-        functions: 25,
-        branches: 55,
-        statements: 30,
+        // Re-based on the @vitest/coverage-v8 5 measurement, NOT comparable to
+        // the coverage-v8 2 numbers these replaced: v2 counted 260 branches
+        // across src/ where v5 counts 949, so the old 55% branch floor was
+        // measuring a much smaller branch set. Real coverage of src/ is
+        // ~21-25%; the previous 33%/59% was partly a provider artifact.
+        // These must ratchet up, never down (docs/CI_PIPELINE_PLAN.md:261).
+        lines: 21,
+        functions: 20,
+        branches: 25,
+        statements: 21,
       },
     },
   },
