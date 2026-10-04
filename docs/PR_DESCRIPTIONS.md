@@ -15,7 +15,7 @@ upgrades, listed below.
 
 | Branch | Commits ahead | Files | Diff | Risk |
 |--------|--------------:|------:|------|------|
-| `dependabot/pip/backend/runtime-deps-9fd38ec251` | 1 | 1 | +23 / −23 | low — floors only, env already resolves higher |
+| `dependabot/pip/backend/runtime-deps-9fd38ec251` | 1 | 1 | +23 / −23 | **blocked** — bcrypt 5.0.0 breaks passlib (see PR 1) |
 | `dependabot/npm_and_yarn/frontend/multi-7f19880bf6` | 1 | 2 | +10 / −21 | **high** — react 18 → 19 (major) |
 | `dependabot/npm_and_yarn/frontend/multi-de36fa8f59` | 1 | 2 | +17 / −21 | **high** — react-dom 18 → 19 (major) |
 | `dependabot/npm_and_yarn/frontend/react-router-dom-7.18.4` | 1 | 2 | +43 / −24 | **high** — react-router-dom 6 → 7 (major) |
@@ -69,11 +69,40 @@ floors, which is why the suite is green today against the post-bump set.
   `python-dotenv` 1.0.1 → 1.2.3.
 - Tooling: `ruff` 0.16.0 → 0.16.6, `pre-commit` 4.0.0 → 4.6.2.
 
-## Watch items
-- **`bcrypt` is pinned `==4.0.1` → `==5.0.0`** (a major bump, and the only exact
-  pin in the file). The local `.venv` is still on 4.0.1, so this bump is the one
-  change in this PR that the baseline run does *not* already exercise. bcrypt 5
-  drops some legacy hash support — confirm the auth test users still verify.
+## ⛔ Blocker: `bcrypt` 5.0.0 breaks every password hash and verify
+
+`bcrypt` is pinned `==4.0.1` → `==5.0.0`, and `backend/requirements.txt:19`
+pulls `passlib[bcrypt]>=1.7.4`. That pairing is broken. Reproduced in a
+throwaway venv (`passlib==1.7.4` + `bcrypt==5.0.0`):
+
+```
+(trapped) error reading bcrypt version
+AttributeError: module 'bcrypt' has no attribute '__about__'
+    app/services/auth.py:21 -> pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+ValueError: password cannot be longer than 72 bytes, truncate manually if necessary
+```
+
+Two separate breakages: passlib 1.7.4 reads `bcrypt.__about__.__version__`, which
+bcrypt removed in 4.1, and bcrypt 5 dropped the silent 72-byte truncation that
+passlib's handler depends on. `CryptContext(...)` itself raises at import time of
+`app/services/auth.py`, so login, register and refresh all fail — not just new
+hashes.
+
+**Do not merge this PR as-is.** Options, in order of preference:
+
+1. **Keep `bcrypt==4.0.1`** in this PR and open a follow-up that drops passlib
+   for the stdlib-compatible path (bcrypt directly, or `argon2-cffi`). Cheapest
+   and unblocks the other 22 floor bumps, which the baseline run already
+   exercises.
+2. Bump `bcrypt==4.0.1` → `==4.3.0` (highest version passlib 1.7.4 tolerates)
+   and defer the passlib removal to its own task.
+3. Migrate off passlib first, then take bcrypt 5. Correct long-term, but it is a
+   code change to `app/services/auth.py`, not a dependency bump.
+
+## Other watch items
+- 22 of the 23 bumps are floors the local `.venv` already exceeds, so the
+  green baseline above is effectively a post-bump run — bcrypt 5 is the sole
+  exception.
 - `stripe` 10 → 15 spans five majors; `pip-audit` in `security.yml` is the gate.
 
 ## Verification
