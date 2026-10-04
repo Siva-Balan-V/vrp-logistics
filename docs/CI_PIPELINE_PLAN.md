@@ -22,7 +22,28 @@ Reviewed against: `origin/main` (post PR #5 `feat/turn-by-turn`, PR #6 `chore/co
 | 2.9 docs (this file + CONTRIBUTING) | ✅ |
 | 3 coverage ratchet | ⏳ next PRs |
 | 3 branch protection (required checks) | ⛔ needs admin |
-| 3 eslint `--max-warnings 0` burn-down | ⏳ subsequent PRs |
+| 3 eslint `--max-warnings 0` burn-down | ⏳ subsequent PRs (175 warnings) |
+| 3 React Compiler lint rules | ⛔ deferred — see below |
+
+### Deferred: React Compiler lint rules
+`eslint-plugin-react-hooks` 7 moved four React Compiler rules into its
+`recommended` preset. They report **22 findings across 12 files** and are
+currently set to `'off'` in `frontend/eslint.config.js`, so the upgrade does not
+break the gate:
+
+| Rule | Count |
+|------|-------|
+| `react-hooks/set-state-in-effect` | 14 |
+| `react-hooks/static-components` | 5 |
+| `react-hooks/purity` | 2 |
+| `react-hooks/immutability` | 1 |
+
+Adopting them is **not** a mechanical change — each finding needs a source
+refactor, and several touch data-fetching paths (`DashboardPage.jsx`,
+`DriverDetailPage.jsx`, `NotificationSettingsPage.jsx`, `DispatchPage.jsx`,
+`AuthContext.jsx`) plus `useWebSocket.js`. Frontend coverage is ~23%, so those
+refactors need tests written first. Sequence: raise coverage → fix → turn the
+rules on. Do not enable them piecemeal without coverage.
 
 ### Known deviations
 - **Backend coverage excludes `tests/test_api.py`**: `pytest --cov` deadlocks (hangs
@@ -276,7 +297,7 @@ Adopt and document in `CONTRIBUTING.md` / `docs/CONFIGURATION.md`:
 | 5 | Push `fix/ci-green`, open PR → all 6 CI checks green on PR | GitHub statuses |
 | 6 | Merge, then §2/§3 pipelines on `feat/ci-pipelines` branch | new workflow runs |
 | 7 | Add dependabot + PR template + branch-protection rules | UI verification |
-| 8 | Burn down the 176 eslint warnings via `lint:strict` over subsequent PRs | `lint:strict` exit 0 |
+| 8 | Burn down the 175 eslint warnings via `lint:strict` over subsequent PRs | `lint:strict` exit 0 |
 
 **Out of scope / notes**
 - `Jenkinsfile` exists (legacy). Recommend deprecating it in favor of these GH
