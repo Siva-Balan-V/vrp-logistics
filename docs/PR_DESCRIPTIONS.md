@@ -18,17 +18,26 @@ code-level regression.
 | `dependabot/npm_and_yarn/frontend/react-router-dom-7.18.4` | #19 | ✅ **merged** (`ef7934e`) |
 | `dependabot/npm_and_yarn/frontend/multi-7f19880bf6` | #17 | ♻️ **closed** — superseded by #21 |
 | `dependabot/npm_and_yarn/frontend/multi-de36fa8f59` | #16 | ♻️ **closed** — superseded by #21 |
-| `dependabot/npm_and_yarn/frontend/dev-deps-f586ce92d0` | [#20](https://github.com/Siva-Balan-V/vrp-logistics/pull/20) | ⛔ 6 fail — `eslint@10.11.0` vs `eslint-plugin-react@7.37.5` peer `eslint ≤ 9.7` |
-| `dependabot/pip/backend/runtime-deps-9fd38ec251` | [#12](https://github.com/Siva-Balan-V/vrp-logistics/pull/12) | ⛔ 7 fail — `numpy>=2.5.3` needs Python ≥3.12, CI pins 3.11; also bcrypt 5.0.0 breaks passlib |
+| `dependabot/npm_and_yarn/frontend/dev-deps-f586ce92d0` | [#20](https://github.com/Siva-Balan-V/vrp-logistics/pull/20) | ♻️ **closed** — superseded by #22/#25/#27; `eslint@10` still blocked on `eslint-plugin-react@7.37.5` peer `eslint ≤ 9.7` |
+| `dependabot/pip/backend/runtime-deps-9fd38ec251` | [#12](https://github.com/Siva-Balan-V/vrp-logistics/pull/12) | ♻️ **closed** — 21 of 23 bumps landed in #29; `numpy` and `bcrypt` held (Python 3.12 floor, passlib migration) |
+
+> **All dependabot branches are now resolved**, and dependabot itself has been
+> removed (`.github/dependabot.yml` deleted — see `docs/CI_PIPELINE_PLAN.md` §6).
+> The sections below are kept as the record of *why* each branch failed.
 
 ## Recommended order
 
 1. ~~**#19** — merge as-is.~~ Done (`ef7934e`).
 2. ~~**#16 + #17 → one PR.~~ Done — [#21](https://github.com/Siva-Balan-V/vrp-logistics/pull/21)
    (`chore/react-19`) bumps all four React packages in one commit.
-3. **#21 → review and merge** — all frontend checks green locally and on CI.
-4. **#20 → rework** — hold `eslint` at `^9`, then re-split toolchain vs lint majors.
-5. **#12 → rework** — fix the numpy floor *and* hold bcrypt; decide on passlib.
+3. ~~**#21 → review and merge.**~~ Done (`1d78c71`).
+4. ~~**#20 → rework** — hold `eslint` at `^9`, then re-split toolchain vs lint majors.~~
+   Done in three slices — #22 (toolchain), #25 (test env), #27 (lint plugins).
+5. ~~**#12 → rework** — fix the numpy floor *and* hold bcrypt; decide on passlib.~~
+   Done in [#29](https://github.com/Siva-Balan-V/vrp-logistics/pull/29): `numpy` capped
+   `>=2.4.2,<2.5`, `bcrypt` held at `==4.0.1`. The two underlying decisions —
+   raising the Python floor and replacing passlib — are open in
+   `docs/CI_PIPELINE_PLAN.md`.
 
 ## Baseline on `main`
 

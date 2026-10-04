@@ -17,7 +17,7 @@ Reviewed against: `origin/main` (post PR #5 `feat/turn-by-turn`, PR #6 `chore/co
 | 2.4 Trivy scan | ✅ PR #8 (report-only) |
 | 2.5 db-migrations.yml | ✅ PR #8 |
 | 2.6 e2e.yml compose smoke | ✅ PR #8 |
-| 2.7 dependabot.yml | ✅ PR #8 |
+| 2.7 dependabot.yml | 🗑️ removed — see below |
 | 2.8 PR template + CODEOWNERS | ✅ PR #8 |
 | 2.9 docs (this file + CONTRIBUTING) | ✅ |
 | 3 coverage ratchet | ⏳ next PRs |
@@ -283,7 +283,7 @@ Add deterministic scripts (used by CI and pre-commit):
 | E. Secret scan | new `security.yml` or pre-commit CI | `gitleaks detect` / `trufflehog` on every push+PR |
 | F. DB migration check | new `db-migrations.yml` | service container `postgres:16`; run `alembic upgrade head` against it; assert `alembic heads`/`current` equal; keeps `test_database.py::test_run_migrations` as unit-level equivalent |
 | G. Compose smoke / E2E | new `e2e.yml` | `docker compose -f docker-compose.yml ... up -d`, wait for `/health`, post a 2-stop `optimize-routes` request, assert 200 + stops; teardown. Gated behind build job |
-| H. Dependabot | `.github/dependabot.yml` | schedules for `github-actions`, `npm` (frontend), `pip` (backend), weekly; group non-breaking bumps |
+| H. Dependabot | *removed* | `.github/dependabot.yml` deleted; dependency updates are now manual (see below) |
 | I. Deploy gating | `deploy.yml` | deploy `build-push` job `needs: [backend-lint, backend-test, frontend-lint, frontend-test, frontend-build, docker-build]` so broken `main` never publishes images |
 | J. PR scaffold | `.github/pull_request_template.md`, `CODEOWNERS` | standard PR body, reviewer routing |
 | K. Status-check parity | settings | enforce required checks + `CODEOWNERS` review + `main` protection (see §5) |
@@ -309,7 +309,7 @@ Adopt and document in `CONTRIBUTING.md` / `docs/CONFIGURATION.md`:
 5. **Coverage policy**: thresholds start at the measured baseline, then *ratchet up*
    (never down) each PR; CI fails below the floor.
 6. **Deterministic deps**: installs come from locks (§2.2); security pins via
-   dependabot + audit (pip-audit / npm audit).
+   audit (`pip-audit` / `npm audit`) plus the manual bump procedure in §6.
 
 ---
 
@@ -323,7 +323,7 @@ Adopt and document in `CONTRIBUTING.md` / `docs/CONFIGURATION.md`:
 | 4 | §1.3 deploy GHCR token (needs secret `GHCR_TOKEN`) | re-run Deploy via `workflow_dispatch` |
 | 5 | Push `fix/ci-green`, open PR → all 6 CI checks green on PR | GitHub statuses |
 | 6 | Merge, then §2/§3 pipelines on `feat/ci-pipelines` branch | new workflow runs |
-| 7 | Add dependabot + PR template + branch-protection rules | UI verification |
+| 7 | ~~Add dependabot~~ + PR template + branch-protection rules | UI verification |
 | 8 | Burn down the 175 eslint warnings via `lint:strict` over subsequent PRs | `lint:strict` exit 0 |
 
 **Out of scope / notes**
@@ -344,3 +344,46 @@ Adopt and document in `CONTRIBUTING.md` / `docs/CONFIGURATION.md`:
    `REDIS_PASSWORD`/`POSTGRES_PASSWORD` available? If not, keep the deploy job but
    make the SSH step `continue-on-error` until secrets land.
 5. **Jenkinsfile**: keep as-is (legacy) or retire in this effort?
+
+---
+
+## 6. Manual dependency bump procedure
+
+`.github/dependabot.yml` was **removed**, so updates are now manual. It churned
+through four frontend PRs (`#20` → `#26` → `#28`) and two backend ones, re-created
+after every merge, all blocked on the same two floors. Security scanning is
+unaffected — it lives in `.github/workflows/security.yml` (`pip-audit`, `npm audit`,
+Trivy, gitleaks), which is untouched.
+
+**What was lost:** nothing is proposed automatically any more, including security
+patches. `pip-audit` / `npm audit` still *report* in CI but no longer open PRs.
+Audit the repo on a schedule, or watch for advisory notifications.
+
+### Steps
+
+1. **Find candidates**
+   ```bash
+   cd frontend && npm outdated          # or: pip list --outdated
+   ```
+2. **Check the floor before bumping.** Resolve against the *target* interpreter,
+   not the local one — the local venv may be newer than CI:
+   ```bash
+   pip install --dry-run --ignore-installed --only-binary=:all: \
+     --python-version 3.11 --target /tmp/x -r backend/requirements.txt
+   ```
+   This is what caught `numpy>=2.5.3` (no cp311 wheels) and would catch the next
+   floor violation at resolution instead of at `pip install`.
+3. **Check peer ranges** for grouped bumps (`npm view <pkg>@<v> peerDependencies`).
+   This is what caught `eslint@10` vs `eslint-plugin-react`'s `^9.7` peer cap.
+4. **Never relax an exact pin to a range.** `ruff==0.16.6` must stay in lockstep
+   with `.pre-commit-config.yaml:15`; that parity is the whole point of §1.1.
+5. **Verify with the pinned tool version**, not the newest one installed.
+6. **Ratchet coverage up only** — see §3.1.5.
+
+### Still-blocked bumps
+| Bump | Blocked on |
+|---|---|
+| `numpy>=2.5` | Python floor → 3.12 (§ Deferred above) |
+| `bcrypt==5.0.0` | passlib migration; needs tests on `hash_password`/`verify_password` |
+| `eslint@10` | upstream `eslint-plugin-react` ESLint 10 support |
+| `jsdom@30` | Node floor → ≥22.22.2, recorded in `engines` + `.nvmrc` |

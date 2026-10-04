@@ -3,4 +3,3 @@
 
 # CI/CD workflows are infra-owned.
 .github/workflows/ @Siva-Balan-V
-.github/dependabot.yml @Siva-Balan-V

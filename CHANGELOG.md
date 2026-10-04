@@ -15,9 +15,17 @@ mainline. Internally the app advertises version `1.0.0`.
   permissions and concurrency guards plus a deploy gate; `pytest-cov` and vitest
   coverage gates; `security.yml` (pip-audit, npm audit, gitleaks); container
   scanning via Trivy; `db-migrations.yml` (alembic upgrade head against a real
-  Postgres); `e2e.yml` compose smoke; `dependabot.yml`; PR template and
-  CODEOWNERS. Trivy, pip-audit and npm audit are report-only pending baseline
-  review.
+  Postgres); `e2e.yml` compose smoke; PR template and CODEOWNERS. Trivy,
+  pip-audit and npm audit are report-only pending baseline review.
+
+### Removed
+- **Dependabot** (`.github/dependabot.yml`). It churned through four frontend PRs
+  (`#20` → `#26` → `#28`) and two backend ones, re-created after every merge, all
+  blocked on the same two version floors — and it proposed `ruff>=0.16.6`, which
+  would have undone the exact pin added in PR #7. Dependency updates are now
+  manual; the procedure is in `docs/CI_PIPELINE_PLAN.md` §6. Security scanning is
+  unaffected — `security.yml` (pip-audit, npm audit, Trivy, gitleaks) is unchanged,
+  but nothing opens patch PRs automatically any more.
 
 ### Fixed
 - Alembic could not bootstrap a fresh database: no migration created the base
