@@ -50,12 +50,14 @@ export default defineConfig({
         // the coverage-v8 2 numbers these replaced: v2 counted 260 branches
         // across src/ where v5 counts 949, so the old 55% branch floor was
         // measuring a much smaller branch set. Real coverage of src/ is
-        // ~21-25%; the previous 33%/59% was partly a provider artifact.
+        // ~23-27%; the previous 33%/59% was partly a provider artifact.
+        //
         // These must ratchet up, never down (docs/CI_PIPELINE_PLAN.md:261).
-        lines: 21,
-        functions: 20,
-        branches: 25,
-        statements: 21,
+        // Raised from 21/20/25/21 by restoring src/__tests__/api.test.js.
+        lines: 23,
+        functions: 22,
+        branches: 26,
+        statements: 23,
       },
     },
   },
