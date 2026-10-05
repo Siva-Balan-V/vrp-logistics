@@ -51,6 +51,9 @@ Detailed architecture and API flow: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.m
 Known defects, production-readiness gaps, pending tasks and planned features:
 [`docs/TECHNICAL_ROADMAP.md`](docs/TECHNICAL_ROADMAP.md)
 
+Remediation order, with the tests that gate each fix:
+[`docs/BUGFIX_PLAN.md`](docs/BUGFIX_PLAN.md)
+
 ## 🧰 Tech Stack
 
 - **Backend:** FastAPI, Python 3.11, Pydantic, Uvicorn
