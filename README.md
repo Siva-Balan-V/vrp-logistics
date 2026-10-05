@@ -48,6 +48,9 @@ flowchart TD
 
 Detailed architecture and API flow: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 
+Known defects, production-readiness gaps, pending tasks and planned features:
+[`docs/TECHNICAL_ROADMAP.md`](docs/TECHNICAL_ROADMAP.md)
+
 ## 🧰 Tech Stack
 
 - **Backend:** FastAPI, Python 3.11, Pydantic, Uvicorn
