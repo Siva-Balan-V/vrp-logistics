@@ -180,3 +180,86 @@ class TestCreateOrder:
         assert resp.status_code == 200
         assert resp.json()["order_id"] == "order_123"
         assert mock_create.call_args.kwargs["plan"] == "pro"
+
+
+# ─────────────────────────────────────────────
+# POST /api/v1/billing/verify-payment
+# ─────────────────────────────────────────────
+
+
+class TestBillingFraud:
+    """**H1**: the Razorpay signature covers only ``order_id|payment_id``, so
+    it says nothing about *which plan* was paid for."""
+
+    def _verify(self, billing_client, plan: str, signature_ok: bool = True):
+        params = {
+            "razorpay_order_id": "order_123",
+            "razorpay_payment_id": "pay_123",
+            "razorpay_signature": "sig",
+            "plan": plan,
+        }
+        with patch("app.routes.billing.verify_payment_signature", return_value=signature_ok):
+            return billing_client.post(
+                "/api/v1/billing/verify-payment",
+                params=params,
+                headers=billing_client.token(),
+            )
+
+    def test_bad_signature_is_rejected(self, db, billing_client):
+        company = _company()
+        db.queue(_user(), company)
+        resp = self._verify(billing_client, plan="enterprise", signature_ok=False)
+        assert resp.status_code == 400
+        assert company.plan == "free", "a rejected signature must not change the plan"
+
+    def test_unknown_plan_is_rejected(self, db, billing_client):
+        company = _company()
+        db.queue(_user(), company)
+        resp = self._verify(billing_client, plan="platinum")
+        assert resp.status_code == 400
+        assert company.plan == "free"
+
+    def test_valid_payment_upgrades_plan(self, db, billing_client):
+        company = _company()
+        db.queue(_user(), company)
+        resp = self._verify(billing_client, plan="pro")
+        assert resp.status_code == 200
+        assert company.plan == "pro"
+
+    def test_records_payment_reference_on_company(self, db, billing_client):
+        company = _company()
+        db.queue(_user(), company)
+        self._verify(billing_client, plan="pro")
+        assert company.razorpay_order_id == "order_123"
+        assert company.razorpay_payment_id == "pay_123"
+
+    def test_missing_company_returns_404(self, db, billing_client):
+        db.queue(_user(), None)
+        resp = self._verify(billing_client, plan="pro")
+        assert resp.status_code == 404
+
+    def test_client_supplied_enterprise_plan_is_trusted_today(self, db, billing_client):
+        """**Documents H1.** A ₹49 `pro` payment replayed with
+        ``plan=enterprise`` succeeds: the signature does not bind the plan and
+        nothing records the consumption.
+
+        Correct behaviour after PR 1.3: derive the plan from the paid amount
+        with ``get_plan_from_razorpay_amount`` and ignore the client's value.
+        Flip this test then.
+        """
+        company = _company()
+        db.queue(_user(), company)
+        resp = self._verify(billing_client, plan="enterprise")
+        assert resp.status_code == 200
+        assert company.plan == "enterprise"
+
+    def test_payment_is_replayable_today(self, db, billing_client):
+        """**Documents H1.** The same verified triple succeeds repeatedly:
+        nothing records that the payment was consumed. After PR 1.3 there must
+        be a uniqueness constraint on ``(company_id, razorpay_payment_id)``."""
+        company = _company()
+        db.queue(_user(), company, _user(), company)
+        first = self._verify(billing_client, plan="pro")
+        second = self._verify(billing_client, plan="pro")
+        assert first.status_code == 200
+        assert second.status_code == 200, "documents replay; must become 409 after PR 1.3"
