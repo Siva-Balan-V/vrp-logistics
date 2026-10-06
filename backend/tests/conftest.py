@@ -22,6 +22,7 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from fastapi.testclient import TestClient
 
 # Must happen before any ``app.*`` import: ``get_settings`` is lru_cached and
 # ``app.main`` binds settings at module scope.
@@ -133,3 +134,21 @@ def auth_headers(access_token):
         return {"Authorization": f"Bearer {token}"}
 
     return _factory
+
+
+@pytest.fixture
+def app():
+    """A fresh application with dependency overrides cleared on teardown."""
+    from app.main import create_app
+
+    instance = create_app()
+    yield instance
+    instance.dependency_overrides.clear()
+
+
+@pytest.fixture
+def client(app, db_dependency):
+    """TestClient wired to ``db_mock`` via ``get_db``."""
+    db_dependency(app)
+    with TestClient(app) as c:
+        yield c
