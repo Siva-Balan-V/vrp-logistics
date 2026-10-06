@@ -17,12 +17,14 @@ Two jobs:
 
 from __future__ import annotations
 
+import uuid
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-# Must happen before any ``app.*`` import that constructs Settings:
-# ``get_settings`` is lru_cached and ``app.main`` binds it at module scope.
+# Must happen before any ``app.*`` import: ``get_settings`` is lru_cached and
+# ``app.main`` binds settings at module scope.
 from app.config import Settings, get_settings
 
 Settings.model_config["env_file"] = None
@@ -67,3 +69,67 @@ def db_dependency(db_mock):
 
     yield _install
     # Overrides are cleared by the app fixture that requested them.
+
+
+@pytest.fixture
+def make_user():
+    """Factory for a User row with sane defaults.
+
+    ``password_hash`` is a precomputed bcrypt hash of ``correct-horse`` so
+    ``verify_password`` has something real to check without paying bcrypt's
+    cost on every test.
+    """
+
+    def _factory(
+        *,
+        email: str = "user@example.com",
+        company_id: uuid.UUID | str = "00000000-0000-0000-0000-000000000002",
+        role: str = "member",
+        is_active: bool = True,
+        with_company: bool = True,
+    ):
+        from app.models.db import Company, User
+
+        company = None
+        if with_company:
+            cid = company_id if isinstance(company_id, uuid.UUID) else uuid.UUID(str(company_id))
+            company = Company(id=cid, name="Test Co")
+        return User(
+            id=uuid.uuid4(),
+            email=email,
+            password_hash="$2b$12$abcdefghijklmnopqrstuvCPMvIQfMXvVBGMPvhO3BsS0lACz3ZK1fEa",
+            company_id=company.id if company else company_id,
+            role=role,
+            is_active=is_active,
+            created_at=datetime.now(UTC),
+            company=company,
+        )
+
+    return _factory
+
+
+@pytest.fixture
+def access_token(settings):
+    """Build an access token signed with the test secret."""
+    from app.services.auth import create_access_token
+
+    def _factory(user_id, **extra):
+        return create_access_token({"sub": str(user_id), **extra})
+
+    return _factory
+
+
+@pytest.fixture
+def auth_headers(access_token):
+    """Factory for an ``Authorization`` header for a given user id."""
+
+    def _factory(user_id, token_type: str = "access") -> dict[str, str]:
+        if token_type == "refresh":
+            from app.services.auth import create_refresh_token
+
+            token = create_refresh_token({"sub": str(user_id)})
+        else:
+            token = access_token(user_id)
+        return {"Authorization": f"Bearer {token}"}
+
+    return _factory
