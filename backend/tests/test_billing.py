@@ -140,3 +140,43 @@ class TestUsage:
         billing_client.get("/api/v1/billing/usage", headers=billing_client.token())
         stmt = db.execute.await_args_list[1].args[0]
         assert str(_COMPANY_ID) in str(stmt.compile().params)
+
+
+# ─────────────────────────────────────────────
+# POST /api/v1/billing/create-order
+# ─────────────────────────────────────────────
+
+
+class TestCreateOrder:
+    def test_rejects_unknown_plan(self, db, billing_client):
+        _authenticate(db)
+        resp = billing_client.post("/api/v1/billing/create-order?plan=platinum", headers=billing_client.token())
+        assert resp.status_code == 400
+
+    def test_rejects_free_plan_upgrade(self, db, billing_client):
+        _authenticate(db)
+        resp = billing_client.post("/api/v1/billing/create-order?plan=free", headers=billing_client.token())
+        assert resp.status_code == 400
+
+    def test_requires_authentication(self, billing_client):
+        assert billing_client.post("/api/v1/billing/create-order?plan=pro").status_code == 401
+
+    def test_missing_company_returns_404(self, db, billing_client):
+        db.queue(_user(), None)
+        resp = billing_client.post("/api/v1/billing/create-order?plan=pro", headers=billing_client.token())
+        assert resp.status_code == 404
+
+    def test_unconfigured_razorpay_returns_500(self, db, billing_client):
+        _authenticate(db)
+        with patch("app.routes.billing.create_order", return_value=None):
+            resp = billing_client.post("/api/v1/billing/create-order?plan=pro", headers=billing_client.token())
+        assert resp.status_code == 500
+
+    def test_successful_order_returns_provider_id(self, db, billing_client):
+        _authenticate(db)
+        order = {"order_id": "order_123", "amount": 4900, "currency": "INR", "key_id": "rzp_test"}
+        with patch("app.routes.billing.create_order", return_value=order) as mock_create:
+            resp = billing_client.post("/api/v1/billing/create-order?plan=pro", headers=billing_client.token())
+        assert resp.status_code == 200
+        assert resp.json()["order_id"] == "order_123"
+        assert mock_create.call_args.kwargs["plan"] == "pro"
