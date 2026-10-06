@@ -252,3 +252,34 @@ class TestLogin:
 
     def test_missing_fields_return_422(self, client_with_db):
         assert client_with_db.post("/api/v1/auth/login", json={"email": "user@example.com"}).status_code == 422
+
+
+# ─────────────────────────────────────────────
+# POST /api/v1/auth/refresh
+# ─────────────────────────────────────────────
+
+
+class TestRefresh:
+    def test_valid_refresh_token_returns_new_pair(self, client_with_db):
+        from app.services.auth import create_refresh_token
+
+        resp = client_with_db.post(
+            "/api/v1/auth/refresh",
+            json={"refresh_token": create_refresh_token({"sub": _USER_ID})},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["access_token"]
+
+    def test_access_token_is_rejected(self, client_with_db):
+        """The client holds both tokens; sending the wrong one must fail."""
+        from app.services.auth import create_access_token
+
+        resp = client_with_db.post(
+            "/api/v1/auth/refresh",
+            json={"refresh_token": create_access_token({"sub": _USER_ID})},
+        )
+        assert resp.status_code == 401
+
+    def test_garbage_token_rejected(self, client_with_db):
+        resp = client_with_db.post("/api/v1/auth/refresh", json={"refresh_token": "garbage"})
+        assert resp.status_code == 401
