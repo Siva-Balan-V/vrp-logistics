@@ -348,3 +348,38 @@ class TestBillingAuthorization:
         db.queue(_user(role="admin"), None)
         resp = billing_client.post("/api/v1/billing/cancel-subscription", headers=billing_client.token())
         assert resp.status_code == 404
+
+
+# ─────────────────────────────────────────────
+# Plan limits
+# ─────────────────────────────────────────────
+
+
+class TestPlanLimits:
+    def test_unknown_plan_falls_back_to_free(self):
+        from app.services.plans import get_plan_limits
+
+        assert get_plan_limits("enterprise-plus-ultra") == get_plan_limits("free")
+
+    def test_free_plan_blocks_large_jobs(self):
+        from app.services.plans import check_optimization_limit
+
+        msg = check_optimization_limit("free", 0, 500, "haversine")
+        assert msg is not None and "Location limit" in msg
+
+    def test_free_plan_blocks_paid_backends(self):
+        from app.services.plans import check_optimization_limit
+
+        msg = check_optimization_limit("free", 0, 10, "osrm")
+        assert msg is not None and "not allowed" in msg
+
+    def test_pro_allows_osrm(self):
+        from app.services.plans import check_optimization_limit
+
+        assert check_optimization_limit("pro", 0, 400, "osrm") is None
+
+    def test_monthly_quota_enforced(self):
+        from app.services.plans import check_optimization_limit
+
+        msg = check_optimization_limit("free", 5, 10, "haversine")
+        assert msg is not None and "Monthly optimization limit" in msg
