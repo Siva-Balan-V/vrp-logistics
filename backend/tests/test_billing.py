@@ -106,3 +106,37 @@ class TestListPlans:
         plans = {p["id"]: p for p in billing_client.get("/api/v1/billing/plans").json()["plans"]}
         assert plans["free"]["export_enabled"] is False
         assert plans["pro"]["export_enabled"] is True
+
+
+# ─────────────────────────────────────────────
+# GET /api/v1/billing/usage
+# ─────────────────────────────────────────────
+
+
+class TestUsage:
+    def test_requires_authentication(self, billing_client):
+        assert billing_client.get("/api/v1/billing/usage").status_code == 401
+
+    def test_scopes_to_callers_company(self, db, billing_client):
+        # auth lookup, then the monthly count, then the company row
+        db.queue(_user(), None, _company(plan="pro"))
+        db.set_scalar(7)
+        resp = billing_client.get("/api/v1/billing/usage", headers=billing_client.token())
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["plan"] == "pro"
+        assert body["monthly_optimizations_used"] == 7
+
+    def test_falls_back_to_free_when_company_missing(self, db, billing_client):
+        db.queue(_user(), None, None)
+        db.set_scalar(0)
+        resp = billing_client.get("/api/v1/billing/usage", headers=billing_client.token())
+        assert resp.json()["plan"] == "free"
+
+    def test_uses_caller_company_id_in_query(self, db, billing_client):
+        """The usage query must be filtered by the authenticated company, so
+        one tenant cannot read another's counter."""
+        db.queue(_user(), None, _company(plan="pro"))
+        billing_client.get("/api/v1/billing/usage", headers=billing_client.token())
+        stmt = db.execute.await_args_list[1].args[0]
+        assert str(_COMPANY_ID) in str(stmt.compile().params)
