@@ -150,3 +150,69 @@ class TestPasswordHashing:
 
         with pytest.raises(Exception, match="hash could not be identified"):
             verify_password("anything", "not-a-bcrypt-hash")
+
+
+# ─────────────────────────────────────────────
+# POST /api/v1/auth/register
+# ─────────────────────────────────────────────
+
+
+class TestRegister:
+    def test_returns_201_with_both_token_types(self, client_with_db):
+        with patch("app.routes.auth.register_user", AsyncMock(return_value=_user())) as reg:
+            resp = client_with_db.post(
+                "/api/v1/auth/register",
+                json={"email": "user@example.com", "password": "password123", "company_name": "Test Co"},
+            )
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["access_token"] and body["refresh_token"]
+        assert reg.await_args is not None
+
+    def test_company_name_signup_gets_admin_role(self, client_with_db):
+        """Documented behaviour, and the reason C5 is reachable: any signup
+        that supplies a company_name is granted tenant-admin."""
+        seen = {}
+
+        async def _capture(db, email, password, company_name):
+            seen["company_name"] = company_name
+            return _user(role="admin")
+
+        with patch("app.routes.auth.register_user", _capture):
+            client_with_db.post(
+                "/api/v1/auth/register",
+                json={"email": "founder@example.com", "password": "password123", "company_name": "Acme"},
+            )
+        assert seen["company_name"] == "Acme"
+
+    def test_duplicate_email_returns_409(self, client_with_db):
+        with patch("app.routes.auth.register_user", AsyncMock(side_effect=ValueError("Email already registered"))):
+            resp = client_with_db.post(
+                "/api/v1/auth/register",
+                json={"email": "dup@example.com", "password": "password123"},
+            )
+        assert resp.status_code == 409
+
+    def test_short_password_rejected_by_schema(self, client_with_db):
+        resp = client_with_db.post(
+            "/api/v1/auth/register",
+            json={"email": "user@example.com", "password": "short"},
+        )
+        assert resp.status_code == 422
+
+    def test_returns_503_without_database(self, db_mock):
+        """Auth is unavailable, not silently open, when no DATABASE_URL."""
+        from fastapi.testclient import TestClient
+
+        from app.database import get_db
+
+        app = create_app()
+
+        async def _fake_db():
+            yield db_mock
+
+        app.dependency_overrides[get_db] = _fake_db
+        with patch("app.routes.auth.is_db_enabled", return_value=False), TestClient(app) as c:
+            resp = c.post("/api/v1/auth/register", json={"email": "user@example.com", "password": "password123"})
+        app.dependency_overrides.clear()
+        assert resp.status_code == 503
