@@ -263,3 +263,44 @@ class TestBillingFraud:
         second = self._verify(billing_client, plan="pro")
         assert first.status_code == 200
         assert second.status_code == 200, "documents replay; must become 409 after PR 1.3"
+
+
+class TestVerifyPaymentSignature:
+    """Unit-level checks on the HMAC itself."""
+
+    @staticmethod
+    def _sign(order_id: str, payment_id: str, secret: str = "secret") -> str:
+        import hashlib
+        import hmac
+
+        return hmac.new(secret.encode(), f"{order_id}|{payment_id}".encode(), hashlib.sha256).hexdigest()
+
+    def test_valid_signature_accepted(self):
+        from app.services.razorpay_service import verify_payment_signature
+
+        with patch("app.config.get_settings") as gs:
+            gs.return_value.RAZORPAY_KEY_SECRET = "secret"
+            assert verify_payment_signature("order_1", "pay_1", self._sign("order_1", "pay_1")) is True
+
+    def test_signature_bound_to_order_and_payment(self):
+        from app.services.razorpay_service import verify_payment_signature
+
+        with patch("app.config.get_settings") as gs:
+            gs.return_value.RAZORPAY_KEY_SECRET = "secret"
+            sig = self._sign("order_1", "pay_1")
+            assert verify_payment_signature("order_1", "pay_2", sig) is False
+            assert verify_payment_signature("order_2", "pay_1", sig) is False
+
+    def test_unset_secret_rejects_everything(self):
+        from app.services.razorpay_service import verify_payment_signature
+
+        with patch("app.config.get_settings") as gs:
+            gs.return_value.RAZORPAY_KEY_SECRET = ""
+            assert verify_payment_signature("order_1", "pay_1", self._sign("order_1", "pay_1")) is False
+
+    def test_plan_amount_mapping(self):
+        from app.services.razorpay_service import get_plan_from_razorpay_amount
+
+        assert get_plan_from_razorpay_amount(4900) == "pro"
+        assert get_plan_from_razorpay_amount(19900) == "enterprise"
+        assert get_plan_from_razorpay_amount(1) is None
