@@ -103,3 +103,50 @@ class TestTokenTypes:
         token = create_access_token({"sub": _USER_ID})
         tampered = token[:-3] + ("aaa" if not token.endswith("aaa") else "bbb")
         assert decode_token(tampered) is None
+
+
+# ─────────────────────────────────────────────
+# Password hashing
+# ─────────────────────────────────────────────
+
+
+class TestPasswordHashing:
+    """`hash_password` / `verify_password` had no coverage at all, which is
+    what blocked the passlib -> bcrypt migration."""
+
+    def test_hash_then_verify_roundtrip(self):
+        from app.services.auth import hash_password, verify_password
+
+        hashed = hash_password("correct-horse-battery-staple")
+        assert hashed != "correct-horse-battery-staple"
+        assert verify_password("correct-horse-battery-staple", hashed) is True
+
+    def test_verify_rejects_wrong_password(self):
+        from app.services.auth import hash_password, verify_password
+
+        hashed = hash_password("correct-horse-battery-staple")
+        assert verify_password("wrong-password", hashed) is False
+
+    def test_hash_is_salted(self):
+        from app.services.auth import hash_password
+
+        assert hash_password("same-password") != hash_password("same-password")
+
+    def test_verify_password_raises_on_malformed_hash(self):
+        """Documents a real defect rather than asserting the correct behaviour.
+
+        ``verify_password`` propagates ``passlib.exc.UnknownHashError`` instead
+        of returning False. ``authenticate_user`` calls it unguarded, so one
+        corrupt ``password_hash`` column turns login into a 500 rather than a
+        401 — and enumerates which emails exist.
+
+        Not yet in the roadmap. Fix is to catch ``ValueError``/``Exception``
+        inside ``verify_password`` and return False; flip this test to assert
+        ``is False`` at that point.
+        """
+        import pytest
+
+        from app.services.auth import verify_password
+
+        with pytest.raises(Exception, match="hash could not be identified"):
+            verify_password("anything", "not-a-bcrypt-hash")
