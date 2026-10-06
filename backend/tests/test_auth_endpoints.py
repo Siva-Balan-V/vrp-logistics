@@ -283,3 +283,71 @@ class TestRefresh:
     def test_garbage_token_rejected(self, client_with_db):
         resp = client_with_db.post("/api/v1/auth/refresh", json={"refresh_token": "garbage"})
         assert resp.status_code == 401
+
+
+# ─────────────────────────────────────────────
+# GET /api/v1/auth/me
+# ─────────────────────────────────────────────
+
+
+class TestMe:
+    def _client(self, db_mock):
+        from fastapi.testclient import TestClient
+
+        from app.database import get_db
+
+        app = create_app()
+
+        async def _fake_db():
+            yield db_mock
+
+        app.dependency_overrides[get_db] = _fake_db
+        client = TestClient(app)
+        client.app_instance = app
+        return client, app
+
+    def test_returns_user_with_company_name(self, db_mock):
+        db_mock.execute.return_value.scalar_one_or_none.return_value = _user()
+        client, app = self._client(db_mock)
+        with patch("app.dependencies.is_db_enabled", return_value=True):
+            from app.services.auth import create_access_token
+
+            token = create_access_token({"sub": _USER_ID})
+            resp = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+        app.dependency_overrides.clear()
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["email"] == "user@example.com"
+        assert body["company_name"] == "Test Co"
+        assert body["company_id"] == _COMPANY_ID
+
+    def test_unauthenticated_returns_401(self, db_mock):
+        client, app = self._client(db_mock)
+        with patch("app.dependencies.is_db_enabled", return_value=True):
+            resp = client.get("/api/v1/auth/me")
+        app.dependency_overrides.clear()
+        assert resp.status_code == 401
+
+    def test_refresh_token_is_rejected_on_me(self, db_mock):
+        """An access-only endpoint must not accept a refresh token."""
+        db_mock.execute.return_value.scalar_one_or_none.return_value = _user()
+        client, app = self._client(db_mock)
+        with patch("app.dependencies.is_db_enabled", return_value=True):
+            from app.services.auth import create_refresh_token
+
+            token = create_refresh_token({"sub": _USER_ID})
+            resp = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+        app.dependency_overrides.clear()
+        assert resp.status_code == 401
+
+    def test_inactive_user_returns_401(self, db_mock):
+        """Deactivating a user must deny access, not merely hide the profile."""
+        db_mock.execute.return_value.scalar_one_or_none.return_value = None
+        client, app = self._client(db_mock)
+        with patch("app.dependencies.is_db_enabled", return_value=True):
+            from app.services.auth import create_access_token
+
+            token = create_access_token({"sub": _USER_ID})
+            resp = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+        app.dependency_overrides.clear()
+        assert resp.status_code == 401
