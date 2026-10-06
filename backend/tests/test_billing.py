@@ -304,3 +304,47 @@ class TestVerifyPaymentSignature:
         assert get_plan_from_razorpay_amount(4900) == "pro"
         assert get_plan_from_razorpay_amount(19900) == "enterprise"
         assert get_plan_from_razorpay_amount(1) is None
+
+
+# ─────────────────────────────────────────────
+# POST /api/v1/billing/cancel-subscription
+# ─────────────────────────────────────────────
+
+
+class TestBillingAuthorization:
+    """**H2**: all billing mutations use ``require_user``, so a plain
+    ``member`` can cancel the company subscription. ``api_keys.py`` already
+    does this correctly with ``require_admin``."""
+
+    def test_member_cannot_cancel_today(self, db, billing_client):
+        """**Documents H2.** A `member` downgrades the company from `pro` to
+        `free`. After PR 1.3 this must return 403 and leave the plan alone."""
+        company = _company(plan="pro")
+        db.queue(_user(role="member"), company)
+        resp = billing_client.post("/api/v1/billing/cancel-subscription", headers=billing_client.token())
+        assert resp.status_code == 200
+        assert company.plan == "free"
+
+    def test_admin_can_cancel(self, db, billing_client):
+        company = _company(plan="pro")
+        db.queue(_user(role="admin"), company)
+        resp = billing_client.post("/api/v1/billing/cancel-subscription", headers=billing_client.token())
+        assert resp.status_code == 200
+        assert company.plan == "free"
+
+    def test_cancel_requires_authentication(self, billing_client):
+        assert billing_client.post("/api/v1/billing/cancel-subscription").status_code == 401
+
+    def test_clears_payment_references(self, db, billing_client):
+        company = _company(plan="pro")
+        company.razorpay_order_id = "order_123"
+        company.razorpay_payment_id = "pay_123"
+        db.queue(_user(role="admin"), company)
+        billing_client.post("/api/v1/billing/cancel-subscription", headers=billing_client.token())
+        assert company.razorpay_order_id is None
+        assert company.razorpay_payment_id is None
+
+    def test_missing_company_returns_404(self, db, billing_client):
+        db.queue(_user(role="admin"), None)
+        resp = billing_client.post("/api/v1/billing/cancel-subscription", headers=billing_client.token())
+        assert resp.status_code == 404
