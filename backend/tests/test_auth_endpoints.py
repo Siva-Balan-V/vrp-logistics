@@ -216,3 +216,39 @@ class TestRegister:
             resp = c.post("/api/v1/auth/register", json={"email": "user@example.com", "password": "password123"})
         app.dependency_overrides.clear()
         assert resp.status_code == 503
+
+
+# ─────────────────────────────────────────────
+# POST /api/v1/auth/login
+# ─────────────────────────────────────────────
+
+
+class TestLogin:
+    def test_valid_credentials_return_tokens(self, client_with_db, db_mock):
+        db_mock.execute.return_value.scalar_one_or_none.return_value = _user()
+        with patch("app.routes.auth.authenticate_user", AsyncMock(return_value=_user())):
+            resp = client_with_db.post(
+                "/api/v1/auth/login",
+                json={"email": "user@example.com", "password": "password123"},
+            )
+        assert resp.status_code == 200
+        assert resp.json()["access_token"]
+
+    def test_invalid_credentials_return_401(self, client_with_db):
+        with patch("app.routes.auth.authenticate_user", AsyncMock(return_value=None)):
+            resp = client_with_db.post(
+                "/api/v1/auth/login",
+                json={"email": "user@example.com", "password": "wrong"},
+            )
+        assert resp.status_code == 401
+
+    def test_unknown_email_returns_401(self, client_with_db):
+        with patch("app.routes.auth.authenticate_user", AsyncMock(return_value=None)):
+            resp = client_with_db.post(
+                "/api/v1/auth/login",
+                json={"email": "nobody@example.com", "password": "password123"},
+            )
+        assert resp.status_code == 401
+
+    def test_missing_fields_return_422(self, client_with_db):
+        assert client_with_db.post("/api/v1/auth/login", json={"email": "user@example.com"}).status_code == 422
